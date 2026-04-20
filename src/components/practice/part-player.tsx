@@ -22,6 +22,29 @@ function isYouTubeUrl(url: string): boolean {
   return url.includes("youtube.com") || url.includes("youtu.be");
 }
 
+// CORS 헤더가 없거나 redirect 체인에서 CORS 깨지는 외부 MP3 호스팅을
+// 서버 프록시를 통해 스트리밍. cafe24처럼 CORS OK인 호스트는 그대로.
+const PROXY_HOSTS = [
+  "drive.google.com",
+  "drive.usercontent.google.com",
+  "dl.dropboxusercontent.com",
+  "github.com",
+  "raw.githubusercontent.com",
+  "objects.githubusercontent.com",
+];
+
+function resolveAudioSrc(url: string): string {
+  try {
+    const u = new URL(url);
+    if (PROXY_HOSTS.some((h) => u.hostname === h || u.hostname.endsWith(`.${h}`))) {
+      return `/api/audio-proxy?url=${encodeURIComponent(url)}`;
+    }
+  } catch {
+    // 이상한 URL은 그대로 통과
+  }
+  return url;
+}
+
 function isInlinePlayable(resource: { resourceType: string; url: string }): boolean {
   if (resource.resourceType === "AUDIO") return true;
   if (/\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(resource.url)) return true;
@@ -493,7 +516,7 @@ function AudioGroup({ resources }: { resources: Resource[] }) {
   const active = valid[safeIdx];
 
   if (valid.length === 1) {
-    return <PracticePlayer key={valid[0].id} src={valid[0].url} id={valid[0].id} onError={handleError} />;
+    return <PracticePlayer key={valid[0].id} src={resolveAudioSrc(valid[0].url)} id={valid[0].id} onError={handleError} />;
   }
 
   return (
@@ -513,7 +536,7 @@ function AudioGroup({ resources }: { resources: Resource[] }) {
           </button>
         ))}
       </div>
-      <PracticePlayer key={active.id} src={active.url} id={active.id} onError={handleError} />
+      <PracticePlayer key={active.id} src={resolveAudioSrc(active.url)} id={active.id} onError={handleError} />
     </div>
   );
 }
