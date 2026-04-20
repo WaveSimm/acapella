@@ -64,26 +64,6 @@ function resolveAudioSrc(url: string): string {
   return url;
 }
 
-function sourceTitle(r: Resource): string {
-  if (r.label) return r.label;
-  if (r.url.startsWith("/api/files/")) return "업로드 파일";
-  if (isYouTubeUrl(r.url)) return "YouTube";
-  try {
-    const u = new URL(r.url);
-    const file = decodeURIComponent(u.pathname.split("/").pop() ?? "");
-    if (file && !/^\s*$/.test(file)) return file;
-    return u.hostname.replace(/^www\./, "");
-  } catch {
-    return r.url;
-  }
-}
-
-function sourceTypeBadge(r: Resource): string {
-  if (isYouTubeUrl(r.url)) return "▶";
-  if (r.resourceType === "AUDIO" || /\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(r.url)) return "🎵";
-  return "🎬";
-}
-
 export function SongPlayer({ resources }: Props) {
   const playable = resources.filter(isInlinePlayable);
 
@@ -123,43 +103,41 @@ export function SongPlayer({ resources }: Props) {
     );
   }
 
+  // 같은 파트가 2개 이상이면 파트 뒤에 인덱스 표시용
+  const partCounts = new Map<string, number>();
+  for (const { part, items } of grouped) {
+    partCounts.set(part, items.length);
+  }
+
   return (
     <div>
-      {/* 파트별 소스 리스트 */}
-      <ul className="mb-3 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white">
-        {grouped.map(({ part, items }) => (
-          <li key={part} className="flex items-start gap-3 px-3 py-2">
-            <span className="shrink-0 rounded bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-600">
-              {part}
-            </span>
-            <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
-              {items.map((r) => {
-                const isActive = r.id === activeId;
-                const failed = failedIds.has(r.id);
-                return (
-                  <button
-                    key={r.id}
-                    onClick={() => { setActiveId(r.id); }}
-                    disabled={failed}
-                    className={`inline-flex max-w-full items-center gap-1 rounded px-2 py-0.5 text-xs transition-colors ${
-                      failed
-                        ? "bg-gray-100 text-gray-400 line-through"
-                        : isActive
-                        ? "bg-blue-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700"
-                    }`}
-                    title={r.url}
-                  >
-                    <span>{sourceTypeBadge(r)}</span>
-                    <span className="truncate">{sourceTitle(r)}</span>
-                    {failed && <span className="ml-1 text-[9px]">불가</span>}
-                  </button>
-                );
-              })}
-            </div>
-          </li>
-        ))}
-      </ul>
+      {/* 소스 선택 버튼 (파트 라벨만) */}
+      <div className="mb-3 flex flex-wrap gap-1.5">
+        {grouped.flatMap(({ part, items }) =>
+          items.map((r, i) => {
+            const isActive = r.id === activeId;
+            const failed = failedIds.has(r.id);
+            const label = (partCounts.get(part) ?? 0) > 1 ? `${part} ${i + 1}` : part;
+            return (
+              <button
+                key={r.id}
+                onClick={() => setActiveId(r.id)}
+                disabled={failed}
+                title={r.label ?? r.url}
+                className={`rounded-full px-3 py-1 text-sm font-medium transition-colors ${
+                  failed
+                    ? "bg-gray-100 text-gray-400 line-through"
+                    : isActive
+                    ? "bg-blue-600 text-white shadow-sm"
+                    : "bg-gray-100 text-gray-700 hover:bg-blue-100 hover:text-blue-700"
+                }`}
+              >
+                {label}
+              </button>
+            );
+          }),
+        )}
+      </div>
 
       {/* 플레이어 */}
       {active ? (
