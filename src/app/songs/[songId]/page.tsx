@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { PartPlayer } from "@/components/practice/part-player";
+import { SourceInventory } from "@/components/practice/source-inventory";
 import { SongMetaEditor } from "@/components/songs/song-meta-editor";
 import { ResourceEditor } from "@/components/songs/resource-editor";
 
@@ -74,6 +75,16 @@ export default async function SongDetailPage({ params }: Props) {
 
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold text-gray-700">파트별 연습</h2>
+        <SourceInventory
+          resources={song.resources.map((r) => ({
+            id: r.id,
+            part: r.part,
+            resourceType: r.resourceType,
+            url: r.url,
+            label: r.label,
+            sourceSite: r.sourceSite,
+          }))}
+        />
         <PartPlayer
           resources={song.resources.filter(
             (r) => r.resourceType !== "SCORE_PREVIEW" && r.resourceType !== "MIDI",

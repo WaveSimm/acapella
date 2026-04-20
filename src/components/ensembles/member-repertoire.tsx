@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { PartPlayer } from "@/components/practice/part-player";
+import { SourceInventory } from "@/components/practice/source-inventory";
 
 interface Resource {
   id: string;
@@ -73,7 +74,19 @@ export function MemberRepertoire({ items }: { items: Item[] }) {
                   </div>
                 )}
                 {item.song.resources.length > 0 ? (
-                  <PartPlayer resources={item.song.resources} />
+                  <>
+                    <SourceInventory
+                      resources={item.song.resources.map((r) => ({
+                        id: r.id,
+                        part: r.part,
+                        resourceType: r.resourceType,
+                        url: r.url,
+                        label: null,
+                        sourceSite: r.sourceSite,
+                      }))}
+                    />
+                    <PartPlayer resources={item.song.resources} />
+                  </>
                 ) : (
                   <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-400">
                     등록된 연습 리소스가 없습니다.
