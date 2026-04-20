@@ -1,0 +1,131 @@
+{
+  "id": "cmo6oy3i0000077ifnxlyubcj",
+  "name": "아카펠라",
+  "slug": "acapella",
+  "practiceBaseUrl": null,
+  "logoUrl": null,
+  "isActive": true,
+  "createdAt": "2026-04-20T04:24:44.856Z",
+  "updatedAt": "2026-04-20T04:24:44.856Z",
+  "collections": [
+    {
+      "id": "cmo6oytdt0001tmi0qjpb7eh6",
+      "publisherId": "cmo6oy3i0000077ifnxlyubcj",
+      "name": "무반주합창단",
+      "volumeNumber": null,
+      "category": "GENERAL",
+      "practiceUrl": null,
+      "coverImage": null,
+      "createdAt": "2026-04-20T04:25:18.401Z",
+      "updatedAt": "2026-04-20T04:25:18.401Z",
+      "songs": [
+        {
+          "id": "cmo6q1snf0001tg3yloixvj86",
+          "collectionId": "cmo6oytdt0001tmi0qjpb7eh6",
+          "trackNumber": null,
+          "pageNumber": null,
+          "titleKo": "Why we sing",
+          "titleEn": null,
+          "composer": null,
+          "arranger": null,
+          "createdAt": "2026-04-20T04:55:37.035Z",
+          "updatedAt": "2026-04-20T04:55:37.035Z",
+          "resources": [
+            {
+              "id": "cmo6q3ufo0001ybv2d5kb6k8l",
+              "songId": "cmo6q1snf0001tg3yloixvj86",
+              "conductorId": "cmnlrxvm70000nkni49qmn8y5",
+              "part": "ALL",
+              "resourceType": "VIDEO",
+              "url": "https://www.youtube.com/watch?v=j8oH7GKFsB0",
+              "sourceSite": "user",
+              "label": null,
+              "createdAt": "2026-04-20T04:57:12.660Z"
+            }
+          ],
+          "specs": []
+        },
+        {
+          "id": "cmo6q1x2a00015excgrxyxr96",
+          "collectionId": "cmo6oytdt0001tmi0qjpb7eh6",
+          "trackNumber": null,
+          "pageNumber": null,
+          "titleKo": "Pure Imagination",
+          "titleEn": null,
+          "composer": null,
+          "arranger": null,
+          "createdAt": "2026-04-20T04:55:42.755Z",
+          "updatedAt": "2026-04-20T04:55:42.755Z",
+          "resources": [
+            {
+              "id": "cmo6qe3520009ybv2g0b9eeld",
+              "songId": "cmo6q1x2a00015excgrxyxr96",
+              "conductorId": "cmnlrxvm70000nkni49qmn8y5",
+              "part": "ALL",
+              "resourceType": "VIDEO",
+              "url": "https://www.youtube.com/watch?v=Kih9SO0TVWY",
+              "sourceSite": "user",
+              "label": null,
+              "createdAt": "2026-04-20T05:05:10.502Z"
+            }
+          ],
+          "specs": []
+        },
+        {
+          "id": "cmo6q23zv0001jws9v8dy9nkl",
+          "collectionId": "cmo6oytdt0001tmi0qjpb7eh6",
+          "trackNumber": null,
+          "pageNumber": null,
+          "titleKo": "Don't you worry 'bout a thing",
+          "titleEn": null,
+          "composer": null,
+          "arranger": null,
+          "createdAt": "2026-04-20T04:55:51.739Z",
+          "updatedAt": "2026-04-20T05:01:23.899Z",
+          "resources": [
+            {
+              "id": "cmo6qobfu0001130x37kkll2r",
+              "songId": "cmo6q23zv0001jws9v8dy9nkl",
+              "conductorId": "cmnlrxvm70000nkni49qmn8y5",
+              "part": "ALL",
+              "resourceType": "AUDIO",
+              "url": "https://drive.google.com/uc?export=download&id=1zgPj44FBkNenrpRhUhFiaNjDinfEcJmB",
+              "sourceSite": "Google Drive",
+              "label": "합창 음원",
+              "createdAt": "2026-04-20T05:13:07.818Z"
+            }
+          ],
+          "specs": []
+        },
+        {
+          "id": "cmo6q241m0003jws9nmmfyjoz",
+          "collectionId": "cmo6oytdt0001tmi0qjpb7eh6",
+          "trackNumber": null,
+          "pageNumber": null,
+          "titleKo": "This is me",
+          "titleEn": null,
+          "composer": null,
+          "arranger": null,
+          "createdAt": "2026-04-20T04:55:51.802Z",
+          "updatedAt": "2026-04-20T04:55:51.802Z",
+          "resources": [],
+          "specs": []
+        },
+        {
+          "id": "cmo6q27uo0001xuoq6vs82x52",
+          "collectionId": "cmo6oytdt0001tmi0qjpb7eh6",
+          "trackNumber": null,
+          "pageNumber": null,
+          "titleKo": "Loop Song",
+          "titleEn": null,
+          "composer": null,
+          "arranger": null,
+          "createdAt": "2026-04-20T04:55:56.737Z",
+          "updatedAt": "2026-04-20T04:55:56.737Z",
+          "resources": [],
+          "specs": []
+        }
+      ]
+    }
+  ]
+}
