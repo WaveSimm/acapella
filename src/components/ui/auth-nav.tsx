@@ -28,6 +28,7 @@ export function AuthNav({ position }: { position: "left" | "right" }) {
     return (
       <div className="flex items-center gap-2 sm:gap-3">
         <NavLink href="/dashboard">내 합창단</NavLink>
+        <NavLink href="/dashboard/songs">곡 관리</NavLink>
       </div>
     );
   }

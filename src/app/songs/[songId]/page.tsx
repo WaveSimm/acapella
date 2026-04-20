@@ -74,16 +74,42 @@ export default async function SongDetailPage({ params }: Props) {
 
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold text-gray-700">파트별 연습</h2>
-        <PartPlayer resources={song.resources} />
+        <PartPlayer resources={song.resources.filter((r) => r.resourceType !== "SCORE_PREVIEW")} />
       </section>
 
+      {song.resources.some((r) => r.resourceType === "SCORE_PREVIEW") && (
+        <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">악보</h2>
+          <ul className="space-y-1.5 text-sm">
+            {song.resources
+              .filter((r) => r.resourceType === "SCORE_PREVIEW")
+              .map((r) => (
+                <li key={r.id} className="flex items-center gap-2">
+                  <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
+                    PDF
+                  </span>
+                  <a
+                    href={r.url}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex-1 truncate text-blue-500 hover:underline"
+                  >
+                    {r.label || r.url}
+                  </a>
+                </li>
+              ))}
+          </ul>
+        </section>
+      )}
+
       <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">연습 소스 관리</h2>
+        <h2 className="mb-3 text-sm font-semibold text-gray-700">연습 소스 · 악보 관리</h2>
         <ResourceEditor
           songId={song.id}
           resources={song.resources.map((r) => ({
             id: r.id,
             part: r.part,
+            resourceType: r.resourceType,
             url: r.url,
             label: r.label,
             conductorId: r.conductorId,

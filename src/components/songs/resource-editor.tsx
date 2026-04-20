@@ -13,9 +13,12 @@ const PART_LABELS: Record<string, string> = {
   BASS: "베이스",
 };
 
+type ResType = "AUTO" | "VIDEO" | "AUDIO" | "SCORE_PREVIEW";
+
 interface Resource {
   id: string;
   part: string;
+  resourceType: string;
   url: string;
   label: string | null;
   conductorId: string | null;
@@ -36,6 +39,7 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
   const [url, setUrl] = useState("");
   const [part, setPart] = useState("ALL");
   const [label, setLabel] = useState("");
+  const [resType, setResType] = useState<ResType>("AUTO");
   const [adding, setAdding] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
 
@@ -46,14 +50,16 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
     e.preventDefault();
     if (!url) return;
     setAdding(true);
+    const body: Record<string, unknown> = { songId, part, url, label: label || undefined };
+    if (resType !== "AUTO") body.resourceType = resType;
     const res = await fetch("/api/resources", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ songId, part, url, label: label || undefined }),
+      body: JSON.stringify(body),
     });
     setAdding(false);
     if (res.ok) {
-      setUrl(""); setLabel(""); setPart("ALL"); setShowForm(false);
+      setUrl(""); setLabel(""); setPart("ALL"); setResType("AUTO"); setShowForm(false);
       toast.success("리소스가 추가되었습니다.");
       router.refresh();
     } else {
@@ -77,11 +83,12 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
     }
   }
 
-  function typeLabel(url: string) {
-    if (url.includes("youtube.com") || url.includes("youtu.be")) return "YouTube";
-    if (/\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(url)) return "음원";
-    if (url.includes("drive.google.com")) return "Drive";
-    return "외부";
+  function typeLabel(r: Resource) {
+    if (r.resourceType === "SCORE_PREVIEW") return "악보";
+    if (r.resourceType === "AUDIO") return "음원";
+    if (r.resourceType === "VIDEO" && (r.url.includes("youtube.com") || r.url.includes("youtu.be"))) return "YouTube";
+    if (/\.pdf(\?.*)?$/i.test(r.url)) return "악보";
+    return r.resourceType === "VIDEO" ? "영상" : "외부";
   }
 
   return (
@@ -101,7 +108,13 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
       {mine.length > 0 && (
         <div className="space-y-1">
           {mine.map((r) => (
-            <ResourceRow key={r.id} r={r} typeLabel={typeLabel(r.url)} onDelete={() => handleDelete(r)} deleting={deleting === r.id} />
+            <ResourceRow
+              key={r.id}
+              r={r}
+              typeLabel={typeLabel(r)}
+              onDelete={() => handleDelete(r)}
+              deleting={deleting === r.id}
+            />
           ))}
         </div>
       )}
@@ -110,14 +123,24 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
         <div className="mt-2 space-y-1 border-t border-gray-100 pt-2">
           <p className="text-[10px] text-gray-400">다른 지휘자가 추가</p>
           {others.map((r) => (
-            <ResourceRow key={r.id} r={r} typeLabel={typeLabel(r.url)} readOnly />
+            <ResourceRow key={r.id} r={r} typeLabel={typeLabel(r)} readOnly />
           ))}
         </div>
       )}
 
       {showForm && (
         <form onSubmit={handleAdd} className="mt-3 rounded-lg border border-blue-200 bg-blue-50/30 p-3">
-          <div className="flex flex-col gap-2 sm:flex-row">
+          <div className="grid gap-2 sm:grid-cols-[auto_auto_1fr]">
+            <select
+              value={resType}
+              onChange={(e) => setResType(e.target.value as ResType)}
+              className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+            >
+              <option value="AUTO">자동 감지</option>
+              <option value="AUDIO">음원</option>
+              <option value="VIDEO">영상</option>
+              <option value="SCORE_PREVIEW">악보(PDF)</option>
+            </select>
             <select
               value={part}
               onChange={(e) => setPart(e.target.value)}
@@ -133,18 +156,18 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
               type="url"
               value={url}
               onChange={(e) => setUrl(e.target.value)}
-              placeholder="YouTube / MP3 / Drive URL"
+              placeholder="URL (YouTube / MP3 / Drive / PDF)"
               required
-              className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-            />
-            <input
-              type="text"
-              value={label}
-              onChange={(e) => setLabel(e.target.value)}
-              placeholder="라벨 (선택)"
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none sm:w-40"
+              className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
             />
           </div>
+          <input
+            type="text"
+            value={label}
+            onChange={(e) => setLabel(e.target.value)}
+            placeholder="라벨 (선택)"
+            className="mt-2 w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+          />
           <div className="mt-2 flex gap-2">
             <button
               type="submit"
@@ -162,7 +185,7 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
             </button>
           </div>
           <p className="mt-2 text-[10px] text-gray-400">
-            Google Drive 공유 URL은 자동으로 재생 가능한 주소로 변환됩니다. (파일 공유 설정: &quot;링크 있는 모든 사용자&quot;)
+            Google Drive 공유 URL은 자동으로 재생/다운로드 가능한 주소로 변환됩니다. (파일 공유 설정: &quot;링크 있는 모든 사용자&quot;)
           </p>
         </form>
       )}
@@ -170,19 +193,31 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
   );
 }
 
-function ResourceRow({ r, typeLabel, onDelete, deleting, readOnly }: {
+function ResourceRow({
+  r,
+  typeLabel,
+  onDelete,
+  deleting,
+  readOnly,
+}: {
   r: Resource;
   typeLabel: string;
   onDelete?: () => void;
   deleting?: boolean;
   readOnly?: boolean;
 }) {
+  const typeColor =
+    typeLabel === "음원" ? "bg-emerald-50 text-emerald-700"
+    : typeLabel === "악보" ? "bg-amber-50 text-amber-700"
+    : typeLabel === "YouTube" || typeLabel === "영상" ? "bg-red-50 text-red-600"
+    : "bg-gray-50 text-gray-600";
+
   return (
     <div className="flex items-center gap-2 text-xs">
       <span className="rounded bg-blue-50 px-1.5 py-0.5 font-medium text-blue-600">
         {PART_LABELS[r.part] ?? r.part}
       </span>
-      <span className="text-gray-400">{typeLabel}</span>
+      <span className={`rounded px-1.5 py-0.5 font-medium ${typeColor}`}>{typeLabel}</span>
       <a
         href={r.url}
         target="_blank"

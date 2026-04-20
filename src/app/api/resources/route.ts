@@ -8,13 +8,14 @@ const createSchema = z.object({
   part: z.enum(["ALL", "SOPRANO", "ALTO", "TENOR", "BASS"]).default("ALL"),
   url: z.string().url().min(1),
   label: z.string().max(100).nullable().optional(),
+  resourceType: z.enum(["VIDEO", "AUDIO", "SCORE_PREVIEW"]).optional(),
 });
 
-function detectType(url: string): "VIDEO" | "AUDIO" {
+function detectType(url: string): "VIDEO" | "AUDIO" | "SCORE_PREVIEW" {
   const isYT = url.includes("youtube.com") || url.includes("youtu.be");
   if (isYT) return "VIDEO";
   if (/\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(url)) return "AUDIO";
-  // Google Drive download URL: AUDIO로 가정
+  if (/\.pdf(\?.*)?$/i.test(url)) return "SCORE_PREVIEW";
   if (/drive\.google\.com\/uc\?.*export=download/i.test(url)) return "AUDIO";
   return "VIDEO";
 }
@@ -38,7 +39,7 @@ export async function POST(request: Request) {
   if (!song) return NextResponse.json({ error: "곡을 찾을 수 없습니다." }, { status: 404 });
 
   const url = rewriteDriveShareUrl(parsed.data.url);
-  const resourceType = detectType(url);
+  const resourceType = parsed.data.resourceType ?? detectType(url);
 
   const resource = await prisma.practiceResource.create({
     data: {
