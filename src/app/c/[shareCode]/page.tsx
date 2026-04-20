@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 import { prisma } from "@/lib/prisma";
 import { logAccess } from "@/lib/access-log";
-import { MemberRepertoire } from "@/components/ensembles/member-repertoire";
+import { MemberTabs } from "@/components/ensembles/member-tabs";
 import type { Metadata } from "next";
 
 export const dynamic = "force-dynamic";
@@ -35,6 +35,12 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 export default async function MemberPage({ params }: Props) {
+  // 오늘(KST) 자정 이후 연습일만
+  const nowUtc = new Date();
+  const kstOffset = 9 * 60 * 60 * 1000;
+  const kstNow = new Date(nowUtc.getTime() + kstOffset);
+  const todayKst = new Date(Date.UTC(kstNow.getUTCFullYear(), kstNow.getUTCMonth(), kstNow.getUTCDate()));
+
   const ensemble = await prisma.ensemble.findUnique({
     where: { shareCode: params.shareCode },
     include: {
@@ -43,8 +49,25 @@ export default async function MemberPage({ params }: Props) {
         orderBy: { orderIdx: "asc" },
         include: {
           song: {
+            include: { resources: { orderBy: { part: "asc" } } },
+          },
+        },
+      },
+      rehearsals: {
+        where: {
+          OR: [
+            { date: null },
+            { date: { gte: todayKst } },
+          ],
+        },
+        orderBy: [{ date: "asc" }, { createdAt: "asc" }],
+        include: {
+          songs: {
+            orderBy: { orderIdx: "asc" },
             include: {
-              resources: { orderBy: { part: "asc" } },
+              song: {
+                include: { resources: { orderBy: { part: "asc" } } },
+              },
             },
           },
         },
@@ -59,7 +82,7 @@ export default async function MemberPage({ params }: Props) {
     shareCode: params.shareCode,
   });
 
-  const items = ensemble.songs.map((es) => ({
+  const repertoire = ensemble.songs.map((es) => ({
     id: es.id,
     note: es.note,
     song: {
@@ -78,6 +101,31 @@ export default async function MemberPage({ params }: Props) {
     },
   }));
 
+  const rehearsals = ensemble.rehearsals.map((r) => ({
+    id: r.id,
+    date: r.date ? toYMD(r.date) : null,
+    startTime: r.startTime,
+    location: r.location,
+    note: r.note,
+    songs: r.songs.map((rs) => ({
+      id: rs.id,
+      note: rs.note,
+      song: {
+        id: rs.song.id,
+        titleKo: rs.song.titleKo,
+        composer: rs.song.composer,
+        pageNumber: rs.song.pageNumber,
+        resources: rs.song.resources.map((res) => ({
+          id: res.id,
+          part: res.part,
+          resourceType: res.resourceType,
+          url: res.url,
+          sourceSite: res.sourceSite,
+        })),
+      },
+    })),
+  }));
+
   return (
     <div>
       <div className="mb-4 flex items-baseline justify-between">
@@ -89,7 +137,14 @@ export default async function MemberPage({ params }: Props) {
         <p className="mb-4 text-sm text-gray-500">{ensemble.description}</p>
       )}
 
-      <MemberRepertoire items={items} />
+      <MemberTabs repertoire={repertoire} rehearsals={rehearsals} />
     </div>
   );
+}
+
+function toYMD(d: Date): string {
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const day = String(d.getUTCDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
 }

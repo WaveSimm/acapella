@@ -22,6 +22,7 @@ model Song {
   resources  PracticeResource[]
   specs      ConductorSpec[]
   ensembles  EnsembleSong[]
+  rehearsals RehearsalSong[]
 
   @@map("songs")
 }
@@ -145,8 +146,42 @@ model Ensemble {
 
   conductor   Conductor      @relation(fields: [conductorId], references: [id])
   songs       EnsembleSong[]
+  rehearsals  Rehearsal[]
 
   @@map("ensembles")
+}
+
+// ─── 연습 일정 ───
+model Rehearsal {
+  id         String          @id @default(cuid())
+  ensembleId String          @map("ensemble_id")
+  date       DateTime?       @db.Date
+  startTime  String?         @map("start_time")
+  location   String?
+  note       String?         @db.Text
+  createdAt  DateTime        @default(now()) @map("created_at")
+  updatedAt  DateTime        @updatedAt @map("updated_at")
+
+  ensemble   Ensemble        @relation(fields: [ensembleId], references: [id], onDelete: Cascade)
+  songs      RehearsalSong[]
+
+  @@index([ensembleId, date])
+  @@map("rehearsals")
+}
+
+model RehearsalSong {
+  id          String    @id @default(cuid())
+  rehearsalId String    @map("rehearsal_id")
+  songId      String    @map("song_id")
+  orderIdx    Int       @default(0) @map("order_idx")
+  note        String?
+  addedAt     DateTime  @default(now()) @map("added_at")
+
+  rehearsal   Rehearsal @relation(fields: [rehearsalId], references: [id], onDelete: Cascade)
+  song        Song      @relation(fields: [songId], references: [id])
+
+  @@unique([rehearsalId, songId])
+  @@map("rehearsal_songs")
 }
 
 // ─── 합창단 레파토리 (곡 목록) ───
