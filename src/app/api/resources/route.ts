@@ -58,9 +58,10 @@ export async function POST(request: Request) {
   }
 
   const url = linkedFile ? `/api/files/${linkedFile.id}` : rewriteDriveShareUrl(parsed.data.url);
+  const MIDI_MIMES = new Set(["audio/midi", "audio/x-midi", "audio/mid", "application/x-midi"]);
   const autoType = linkedFile
     ? (linkedFile.mimeType === "application/pdf" ? "SCORE_PREVIEW"
-       : linkedFile.mimeType === "audio/midi" || linkedFile.mimeType === "audio/x-midi" ? "MIDI"
+       : MIDI_MIMES.has(linkedFile.mimeType) ? "MIDI"
        : linkedFile.mimeType.startsWith("audio/") ? "AUDIO"
        : "VIDEO")
     : detectType(url);

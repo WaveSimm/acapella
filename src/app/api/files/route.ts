@@ -48,7 +48,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: `파일이 너무 큽니다. 최대 ${MAX_SIZE / 1024 / 1024}MB.` }, { status: 413 });
   }
 
-  const mime = file.type || guessMimeFromName(file.name);
+  // 확장자 기반 추론을 우선 (브라우저는 .mid를 audio/mid로 보내는 등 비표준 mime이 많음)
+  const ext = file.name.split(".").pop()?.toLowerCase() ?? "";
+  const guessed = guessMimeFromName(file.name);
+  const mime =
+    ["mid", "midi", "mp3", "wav", "m4a", "ogg", "pdf"].includes(ext)
+      ? guessed
+      : file.type || guessed;
   if (!isAllowed(mime)) {
     return NextResponse.json({ error: `지원하지 않는 파일 타입입니다: ${mime}` }, { status: 415 });
   }
