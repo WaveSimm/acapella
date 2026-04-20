@@ -1,8 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { PartPlayer } from "@/components/practice/part-player";
-import { SourceInventory } from "@/components/practice/source-inventory";
+import { SongPlayer } from "@/components/practice/song-player";
 
 interface Resource {
   id: string;
@@ -120,19 +119,7 @@ function RehearsalCard({ rehearsal }: { rehearsal: MemberRehearsal }) {
                       </div>
                     )}
                     {rs.song.resources.length > 0 ? (
-                      <>
-                        <SourceInventory
-                          resources={rs.song.resources.map((r) => ({
-                            id: r.id,
-                            part: r.part,
-                            resourceType: r.resourceType,
-                            url: r.url,
-                            label: null,
-                            sourceSite: r.sourceSite,
-                          }))}
-                        />
-                        <PartPlayer resources={rs.song.resources} />
-                      </>
+                      <SongPlayer resources={rs.song.resources} />
                     ) : (
                       <p className="rounded-lg border border-dashed border-gray-300 p-4 text-center text-xs text-gray-400">
                         연습 리소스 없음
