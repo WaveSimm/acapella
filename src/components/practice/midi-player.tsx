@@ -2,7 +2,11 @@
 
 import { useEffect, useState } from "react";
 
-// Magenta 가 호스팅하는 공용 SoundFont (피아노 중심, 무료)
+// html-midi-player 웹 컴포넌트 + 호환 Tone.js + @magenta/music core + focus-visible
+// jsdelivr 공식 combine URL (html-midi-player 저자 권장, pinned versions)
+const MIDI_PLAYER_SCRIPT =
+  "https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/[email protected]/es6/core.js,npm/focus-visible@5,npm/[email protected]";
+
 const DEFAULT_SOUND_FONT =
   "https://storage.googleapis.com/magentadata/js/soundfonts/sgm_plus";
 
@@ -10,21 +14,38 @@ interface Props {
   src: string;
 }
 
-// 모듈 로드는 한 번만 수행
-let loadPromise: Promise<void> | null = null;
+let scriptInjected = false;
 
-function loadMidiPlayer(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  if (customElements.get("midi-player")) return Promise.resolve();
-  if (loadPromise) return loadPromise;
-  loadPromise = import("html-midi-player")
-    .then(() => {})
-    .catch((err) => {
-      loadPromise = null;
-      console.error("html-midi-player 로드 실패:", err);
-      throw err;
-    });
-  return loadPromise;
+function injectScriptOnce(): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (typeof window === "undefined") return resolve();
+    if (customElements.get("midi-player")) return resolve();
+
+    const existing = document.getElementById("midi-player-cdn") as HTMLScriptElement | null;
+    if (existing) {
+      // 이미 삽입되었으면 웹 컴포넌트 등록을 폴링
+      const iv = setInterval(() => {
+        if (customElements.get("midi-player")) { clearInterval(iv); resolve(); }
+      }, 100);
+      setTimeout(() => { clearInterval(iv); reject(new Error("timeout")); }, 15000);
+      return;
+    }
+
+    scriptInjected = true;
+    const s = document.createElement("script");
+    s.id = "midi-player-cdn";
+    s.src = MIDI_PLAYER_SCRIPT;
+    s.async = true;
+    s.onload = () => {
+      // 스크립트가 로드되어도 customElements 등록은 미세하게 지연될 수 있음
+      const iv = setInterval(() => {
+        if (customElements.get("midi-player")) { clearInterval(iv); resolve(); }
+      }, 50);
+      setTimeout(() => { clearInterval(iv); reject(new Error("custom element timeout")); }, 10000);
+    };
+    s.onerror = () => reject(new Error("script load failed"));
+    document.head.appendChild(s);
+  });
 }
 
 export function MidiPlayer({ src }: Props) {
@@ -35,9 +56,12 @@ export function MidiPlayer({ src }: Props) {
   useEffect(() => {
     if (status !== "loading") return;
     let cancelled = false;
-    loadMidiPlayer()
+    injectScriptOnce()
       .then(() => { if (!cancelled) setStatus("ready"); })
-      .catch(() => { if (!cancelled) setStatus("error"); });
+      .catch((err) => {
+        console.error("MIDI 플레이어 로드 실패:", err);
+        if (!cancelled) setStatus("error");
+      });
     return () => { cancelled = true; };
   }, [status]);
 
