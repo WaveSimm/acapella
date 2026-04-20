@@ -74,19 +74,29 @@ export default async function SongDetailPage({ params }: Props) {
 
       <section className="mt-6">
         <h2 className="mb-3 text-sm font-semibold text-gray-700">파트별 연습</h2>
-        <PartPlayer resources={song.resources.filter((r) => r.resourceType !== "SCORE_PREVIEW")} />
+        <PartPlayer
+          resources={song.resources.filter(
+            (r) => r.resourceType !== "SCORE_PREVIEW" && r.resourceType !== "MIDI",
+          )}
+        />
       </section>
 
-      {song.resources.some((r) => r.resourceType === "SCORE_PREVIEW") && (
+      {song.resources.some((r) => r.resourceType === "SCORE_PREVIEW" || r.resourceType === "MIDI") && (
         <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
-          <h2 className="mb-3 text-sm font-semibold text-gray-700">악보</h2>
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">악보 · MIDI</h2>
           <ul className="space-y-1.5 text-sm">
             {song.resources
-              .filter((r) => r.resourceType === "SCORE_PREVIEW")
+              .filter((r) => r.resourceType === "SCORE_PREVIEW" || r.resourceType === "MIDI")
               .map((r) => (
                 <li key={r.id} className="flex items-center gap-2">
-                  <span className="rounded bg-amber-50 px-1.5 py-0.5 text-[10px] font-medium text-amber-700">
-                    PDF
+                  <span
+                    className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
+                      r.resourceType === "MIDI"
+                        ? "bg-violet-50 text-violet-700"
+                        : "bg-amber-50 text-amber-700"
+                    }`}
+                  >
+                    {r.resourceType === "MIDI" ? "MIDI" : "PDF"}
                   </span>
                   <a
                     href={r.url}

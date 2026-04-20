@@ -6,14 +6,16 @@ import { z } from "zod";
 const createSchema = z.object({
   songId: z.string().min(1),
   part: z.enum(["ALL", "SOPRANO", "ALTO", "TENOR", "BASS"]).default("ALL"),
-  url: z.string().url().min(1),
+  url: z.string().min(1),
   label: z.string().max(100).nullable().optional(),
-  resourceType: z.enum(["VIDEO", "AUDIO", "SCORE_PREVIEW"]).optional(),
+  resourceType: z.enum(["VIDEO", "AUDIO", "SCORE_PREVIEW", "MIDI"]).optional(),
+  fileId: z.string().nullable().optional(),
 });
 
-function detectType(url: string): "VIDEO" | "AUDIO" | "SCORE_PREVIEW" {
+function detectType(url: string): "VIDEO" | "AUDIO" | "SCORE_PREVIEW" | "MIDI" {
   const isYT = url.includes("youtube.com") || url.includes("youtu.be");
   if (isYT) return "VIDEO";
+  if (/\.(mid|midi)(\?.*)?$/i.test(url)) return "MIDI";
   if (/\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(url)) return "AUDIO";
   if (/\.pdf(\?.*)?$/i.test(url)) return "SCORE_PREVIEW";
   if (/drive\.google\.com\/uc\?.*export=download/i.test(url)) return "AUDIO";
@@ -38,8 +40,31 @@ export async function POST(request: Request) {
   const song = await prisma.song.findUnique({ where: { id: parsed.data.songId }, select: { id: true } });
   if (!song) return NextResponse.json({ error: "곡을 찾을 수 없습니다." }, { status: 404 });
 
-  const url = rewriteDriveShareUrl(parsed.data.url);
-  const resourceType = parsed.data.resourceType ?? detectType(url);
+  // 업로드 파일이면 본인이 올린 건지 + mimeType 기반 자동 분류
+  let linkedFile: { id: string; mimeType: string } | null = null;
+  if (parsed.data.fileId) {
+    const f = await prisma.uploadedFile.findUnique({
+      where: { id: parsed.data.fileId },
+      select: { id: true, mimeType: true, conductorId: true, resource: { select: { id: true } } },
+    });
+    if (!f) return NextResponse.json({ error: "업로드 파일을 찾을 수 없습니다." }, { status: 404 });
+    if (f.conductorId && f.conductorId !== user.id) {
+      return NextResponse.json({ error: "내 파일만 연결할 수 있습니다." }, { status: 403 });
+    }
+    if (f.resource) {
+      return NextResponse.json({ error: "이미 다른 리소스에 연결된 파일입니다." }, { status: 409 });
+    }
+    linkedFile = { id: f.id, mimeType: f.mimeType };
+  }
+
+  const url = linkedFile ? `/api/files/${linkedFile.id}` : rewriteDriveShareUrl(parsed.data.url);
+  const autoType = linkedFile
+    ? (linkedFile.mimeType === "application/pdf" ? "SCORE_PREVIEW"
+       : linkedFile.mimeType === "audio/midi" || linkedFile.mimeType === "audio/x-midi" ? "MIDI"
+       : linkedFile.mimeType.startsWith("audio/") ? "AUDIO"
+       : "VIDEO")
+    : detectType(url);
+  const resourceType = parsed.data.resourceType ?? autoType;
 
   const resource = await prisma.practiceResource.create({
     data: {
@@ -49,7 +74,8 @@ export async function POST(request: Request) {
       resourceType,
       url,
       label: parsed.data.label || null,
-      sourceSite: url.includes("drive.google.com") ? "Google Drive" : "user",
+      sourceSite: linkedFile ? "업로드" : url.includes("drive.google.com") ? "Google Drive" : "user",
+      fileId: linkedFile?.id ?? null,
     },
   });
   return NextResponse.json({ resource }, { status: 201 });

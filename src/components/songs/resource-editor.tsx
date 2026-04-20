@@ -13,7 +13,7 @@ const PART_LABELS: Record<string, string> = {
   BASS: "베이스",
 };
 
-type ResType = "AUTO" | "VIDEO" | "AUDIO" | "SCORE_PREVIEW";
+type ResType = "AUTO" | "VIDEO" | "AUDIO" | "SCORE_PREVIEW" | "MIDI";
 
 interface Resource {
   id: string;
@@ -41,7 +41,48 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
   const [label, setLabel] = useState("");
   const [resType, setResType] = useState<ResType>("AUTO");
   const [adding, setAdding] = useState(false);
+  const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("file", file);
+      const uploadRes = await fetch("/api/files", { method: "POST", body: fd });
+      if (!uploadRes.ok) {
+        const data = await uploadRes.json().catch(() => null);
+        toast.error(data?.error ?? "업로드에 실패했습니다.");
+        return;
+      }
+      const uploaded = await uploadRes.json() as { id: string; url: string; fileName: string };
+      const resRes = await fetch("/api/resources", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          songId,
+          part,
+          url: uploaded.url,
+          fileId: uploaded.id,
+          label: label || uploaded.fileName,
+          ...(resType !== "AUTO" && { resourceType: resType }),
+        }),
+      });
+      if (!resRes.ok) {
+        const data = await resRes.json().catch(() => null);
+        toast.error(data?.error ?? "리소스 생성에 실패했습니다.");
+        return;
+      }
+      toast.success(`${file.name} 업로드 완료`);
+      setUrl(""); setLabel(""); setPart("ALL"); setResType("AUTO"); setShowForm(false);
+      router.refresh();
+    } finally {
+      setUploading(false);
+      e.target.value = "";
+    }
+  }
 
   const mine = resources.filter((r) => r.conductorId === conductorId);
   const others = resources.filter((r) => r.conductorId !== conductorId);
@@ -84,9 +125,11 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
   }
 
   function typeLabel(r: Resource) {
+    if (r.resourceType === "MIDI") return "MIDI";
     if (r.resourceType === "SCORE_PREVIEW") return "악보";
     if (r.resourceType === "AUDIO") return "음원";
     if (r.resourceType === "VIDEO" && (r.url.includes("youtube.com") || r.url.includes("youtu.be"))) return "YouTube";
+    if (/\.(mid|midi)(\?.*)?$/i.test(r.url)) return "MIDI";
     if (/\.pdf(\?.*)?$/i.test(r.url)) return "악보";
     return r.resourceType === "VIDEO" ? "영상" : "외부";
   }
@@ -129,37 +172,36 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
       )}
 
       {showForm && (
-        <form onSubmit={handleAdd} className="mt-3 rounded-lg border border-blue-200 bg-blue-50/30 p-3">
-          <div className="grid gap-2 sm:grid-cols-[auto_auto_1fr]">
-            <select
-              value={resType}
-              onChange={(e) => setResType(e.target.value as ResType)}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-            >
-              <option value="AUTO">자동 감지</option>
-              <option value="AUDIO">음원</option>
-              <option value="VIDEO">영상</option>
-              <option value="SCORE_PREVIEW">악보(PDF)</option>
-            </select>
-            <select
-              value={part}
-              onChange={(e) => setPart(e.target.value)}
-              className="rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-            >
-              <option value="ALL">전체</option>
-              <option value="SOPRANO">소프라노</option>
-              <option value="ALTO">알토</option>
-              <option value="TENOR">테너</option>
-              <option value="BASS">베이스</option>
-            </select>
-            <input
-              type="url"
-              value={url}
-              onChange={(e) => setUrl(e.target.value)}
-              placeholder="URL (YouTube / MP3 / Drive / PDF)"
-              required
-              className="rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-            />
+        <div className="mt-3 rounded-lg border border-blue-200 bg-blue-50/30 p-3">
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>
+              <label className="mb-0.5 block text-[10px] text-gray-500">유형</label>
+              <select
+                value={resType}
+                onChange={(e) => setResType(e.target.value as ResType)}
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+              >
+                <option value="AUTO">자동 감지</option>
+                <option value="AUDIO">음원 (MP3 등)</option>
+                <option value="VIDEO">영상</option>
+                <option value="MIDI">MIDI</option>
+                <option value="SCORE_PREVIEW">악보 (PDF)</option>
+              </select>
+            </div>
+            <div>
+              <label className="mb-0.5 block text-[10px] text-gray-500">파트</label>
+              <select
+                value={part}
+                onChange={(e) => setPart(e.target.value)}
+                className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+              >
+                <option value="ALL">전체</option>
+                <option value="SOPRANO">소프라노</option>
+                <option value="ALTO">알토</option>
+                <option value="TENOR">테너</option>
+                <option value="BASS">베이스</option>
+              </select>
+            </div>
           </div>
           <input
             type="text"
@@ -168,26 +210,58 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
             placeholder="라벨 (선택)"
             className="mt-2 w-full rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
           />
-          <div className="mt-2 flex gap-2">
+
+          {/* URL 추가 */}
+          <form onSubmit={handleAdd} className="mt-2 flex gap-2">
+            <input
+              type="url"
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="URL (YouTube / MP3 / Drive / PDF)"
+              className="flex-1 rounded border border-gray-300 px-3 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
+            />
             <button
               type="submit"
-              disabled={adding || !url}
+              disabled={adding || !url || uploading}
               className="rounded bg-blue-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
             >
-              {adding ? "추가 중..." : "추가"}
+              {adding ? "추가 중..." : "URL 추가"}
             </button>
+          </form>
+
+          {/* 파일 업로드 */}
+          <div className="mt-3 flex items-center gap-2 border-t border-blue-100 pt-3">
+            <label
+              className={`inline-flex cursor-pointer items-center gap-1 rounded border border-blue-300 bg-white px-3 py-1.5 text-xs font-medium text-blue-600 hover:bg-blue-50 ${
+                uploading || adding ? "pointer-events-none opacity-50" : ""
+              }`}
+            >
+              {uploading ? "업로드 중..." : "📁 파일 업로드"}
+              <input
+                type="file"
+                accept="audio/*,.mid,.midi,.mp3,.wav,.m4a,.ogg,application/pdf,.pdf"
+                onChange={handleFileUpload}
+                disabled={uploading || adding}
+                className="hidden"
+              />
+            </label>
+            <span className="text-[10px] text-gray-400">MIDI · MP3 · WAV · PDF (최대 4MB)</span>
+          </div>
+
+          <div className="mt-3 flex items-center gap-2">
             <button
               type="button"
               onClick={() => { setShowForm(false); setUrl(""); setLabel(""); }}
               className="rounded px-3 py-1.5 text-xs text-gray-500 hover:bg-gray-100"
             >
-              취소
+              닫기
             </button>
           </div>
+
           <p className="mt-2 text-[10px] text-gray-400">
-            Google Drive 공유 URL은 자동으로 재생/다운로드 가능한 주소로 변환됩니다. (파일 공유 설정: &quot;링크 있는 모든 사용자&quot;)
+            Google Drive 공유 URL은 자동으로 재생/다운로드 가능한 주소로 변환됩니다.
           </p>
-        </form>
+        </div>
       )}
     </div>
   );
@@ -209,6 +283,7 @@ function ResourceRow({
   const typeColor =
     typeLabel === "음원" ? "bg-emerald-50 text-emerald-700"
     : typeLabel === "악보" ? "bg-amber-50 text-amber-700"
+    : typeLabel === "MIDI" ? "bg-violet-50 text-violet-700"
     : typeLabel === "YouTube" || typeLabel === "영상" ? "bg-red-50 text-red-600"
     : "bg-gray-50 text-gray-600";
 

@@ -37,12 +37,30 @@ model PracticeResource {
   url          String
   sourceSite   String?      @map("source_site")
   label        String?
+  fileId       String?      @unique @map("file_id")
   createdAt    DateTime     @default(now()) @map("created_at")
 
-  song         Song         @relation(fields: [songId], references: [id])
-  conductor    Conductor?   @relation(fields: [conductorId], references: [id])
+  song         Song          @relation(fields: [songId], references: [id])
+  conductor    Conductor?    @relation(fields: [conductorId], references: [id])
+  file         UploadedFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
   @@map("practice_resources")
+}
+
+// ─── 업로드된 파일 (MIDI, PDF, MP3 등 소형 파일) ───
+model UploadedFile {
+  id          String            @id @default(cuid())
+  fileName    String            @map("file_name")
+  mimeType    String            @map("mime_type")
+  size        Int
+  data        Bytes
+  conductorId String?           @map("conductor_id")
+  createdAt   DateTime          @default(now()) @map("created_at")
+
+  resource    PracticeResource?
+
+  @@index([conductorId])
+  @@map("uploaded_files")
 }
 
 enum VoicePart {
@@ -57,6 +75,7 @@ enum ResourceType {
   VIDEO
   AUDIO
   SCORE_PREVIEW
+  MIDI
 }
 
 enum Role {

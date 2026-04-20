@@ -49,6 +49,12 @@ export async function DELETE(
     return NextResponse.json({ error: "삭제 권한이 없습니다." }, { status: 403 });
   }
 
-  await prisma.practiceResource.delete({ where: { id: params.resourceId } });
+  // 파일 기반 리소스면 업로드 파일도 같이 삭제
+  await prisma.$transaction(async (tx) => {
+    await tx.practiceResource.delete({ where: { id: params.resourceId } });
+    if (resource.fileId) {
+      await tx.uploadedFile.delete({ where: { id: resource.fileId } }).catch(() => null);
+    }
+  });
   return NextResponse.json({ success: true });
 }

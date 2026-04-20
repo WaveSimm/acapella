@@ -46,6 +46,8 @@ function resolveAudioSrc(url: string): string {
 }
 
 function isInlinePlayable(resource: { resourceType: string; url: string }): boolean {
+  if (resource.resourceType === "MIDI" || resource.resourceType === "SCORE_PREVIEW") return false;
+  if (/\.(mid|midi)(\?.*)?$/i.test(resource.url)) return false;
   if (resource.resourceType === "AUDIO") return true;
   if (/\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(resource.url)) return true;
   if (isYouTubeUrl(resource.url)) return true;
@@ -591,7 +593,11 @@ export function PartPlayer({ resources, publisherName }: PartPlayerProps) {
 
   // 리소스를 타입별로 그룹화 (외부 링크만인 리소스는 헤더 링크로 흡수되므로 제외)
   const audioResources = filtered.filter(
-    (r) => r.resourceType === "AUDIO" || /\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(r.url)
+    (r) =>
+      r.resourceType !== "MIDI" &&
+      r.resourceType !== "SCORE_PREVIEW" &&
+      !/\.(mid|midi)(\?.*)?$/i.test(r.url) &&
+      (r.resourceType === "AUDIO" || /\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(r.url))
   );
   const otherResources = filtered.filter(
     (r) =>
