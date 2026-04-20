@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { YouTubePlayer } from "./youtube-player";
+import { MidiPlayer } from "./midi-player";
 
 interface Resource {
   id: string;
@@ -33,9 +34,14 @@ function isYouTubeUrl(url: string): boolean {
   return url.includes("youtube.com") || url.includes("youtu.be");
 }
 
+function isMidi(r: Resource): boolean {
+  return r.resourceType === "MIDI" || /\.(mid|midi)(\?.*)?$/i.test(r.url);
+}
+
 function isInlinePlayable(r: Resource): boolean {
-  if (r.resourceType === "MIDI" || r.resourceType === "SCORE_PREVIEW") return false;
-  if (/\.(mid|midi)(\?.*)?$/i.test(r.url)) return false;
+  if (r.resourceType === "SCORE_PREVIEW") return false;
+  if (/\.pdf(\?.*)?$/i.test(r.url)) return false;
+  if (isMidi(r)) return true; // MIDI도 재생 가능 (SoundFont 신시사이저)
   if (r.resourceType === "AUDIO") return true;
   if (/\.(mp3|wav|m4a|ogg)(\?.*)?$/i.test(r.url)) return true;
   if (isYouTubeUrl(r.url)) return true;
@@ -153,6 +159,9 @@ export function SongPlayer({ resources }: Props) {
 
 // ─── 플레이어 셸 ───
 function PlayerShell({ resource, onError }: { resource: Resource; onError: (id: string) => void }) {
+  if (isMidi(resource)) {
+    return <MidiPlayer key={resource.id} src={resolveAudioSrc(resource.url)} />;
+  }
   if (isYouTubeUrl(resource.url)) {
     return <YouTubePlayer key={resource.id} url={resource.url} />;
   }
