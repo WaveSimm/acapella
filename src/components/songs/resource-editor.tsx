@@ -36,6 +36,7 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
   const [adding, setAdding] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+  const [editingId, setEditingId] = useState<string | null>(null);
 
   // 이 곡에 이미 쓰인 파트 + 공통 파트 추천 (중복 제거)
   const partSuggestions = useMemo(() => {
@@ -116,6 +117,25 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
     }
   }
 
+  async function handleEditSave(id: string, data: { part: string; label: string }) {
+    const res = await fetch(`/api/resources/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        part: data.part.trim() || "전체",
+        label: data.label.trim() || null,
+      }),
+    });
+    if (res.ok) {
+      toast.success("저장되었습니다.");
+      setEditingId(null);
+      router.refresh();
+    } else {
+      const d = await res.json().catch(() => null);
+      toast.error(d?.error ?? "저장에 실패했습니다.");
+    }
+  }
+
   async function handleDelete(r: Resource) {
     const ok = await confirm({ message: "이 리소스를 삭제하시겠습니까?", confirmLabel: "삭제", danger: true });
     if (!ok) return;
@@ -158,13 +178,24 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
       {mine.length > 0 && (
         <div className="space-y-1">
           {mine.map((r) => (
-            <ResourceRow
-              key={r.id}
-              r={r}
-              typeLabel={typeLabel(r)}
-              onDelete={() => handleDelete(r)}
-              deleting={deleting === r.id}
-            />
+            <div key={r.id}>
+              {editingId === r.id ? (
+                <ResourceEditRow
+                  r={r}
+                  partSuggestions={partSuggestions}
+                  onSave={(data) => handleEditSave(r.id, data)}
+                  onCancel={() => setEditingId(null)}
+                />
+              ) : (
+                <ResourceRow
+                  r={r}
+                  typeLabel={typeLabel(r)}
+                  onDelete={() => handleDelete(r)}
+                  onEdit={() => setEditingId(r.id)}
+                  deleting={deleting === r.id}
+                />
+              )}
+            </div>
           ))}
         </div>
       )}
@@ -281,12 +312,14 @@ function ResourceRow({
   r,
   typeLabel,
   onDelete,
+  onEdit,
   deleting,
   readOnly,
 }: {
   r: Resource;
   typeLabel: string;
   onDelete?: () => void;
+  onEdit?: () => void;
   deleting?: boolean;
   readOnly?: boolean;
 }) {
@@ -311,6 +344,14 @@ function ResourceRow({
       >
         {r.label || r.url}
       </a>
+      {!readOnly && onEdit && (
+        <button
+          onClick={onEdit}
+          className="shrink-0 text-blue-500 hover:text-blue-700"
+        >
+          편집
+        </button>
+      )}
       {!readOnly && onDelete && (
         <button
           onClick={onDelete}
@@ -321,5 +362,79 @@ function ResourceRow({
         </button>
       )}
     </div>
+  );
+}
+
+function ResourceEditRow({
+  r,
+  partSuggestions,
+  onSave,
+  onCancel,
+}: {
+  r: Resource;
+  partSuggestions: string[];
+  onSave: (data: { part: string; label: string }) => Promise<void> | void;
+  onCancel: () => void;
+}) {
+  const [part, setPart] = useState(PART_LABELS[r.part] ?? r.part);
+  const [label, setLabel] = useState(r.label ?? "");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (!part.trim()) return;
+    setSaving(true);
+    try {
+      await onSave({ part, label });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <form onSubmit={handleSubmit} className="rounded border border-blue-300 bg-blue-50/30 p-2">
+      <div className="flex flex-col gap-2 sm:flex-row">
+        <input
+          type="text"
+          value={part}
+          onChange={(e) => setPart(e.target.value)}
+          list={`part-suggestions-edit-${r.id}`}
+          placeholder="파트"
+          required
+          className="w-full rounded border border-gray-300 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none sm:w-28"
+        />
+        <datalist id={`part-suggestions-edit-${r.id}`}>
+          {partSuggestions.map((p) => (
+            <option key={p} value={p} />
+          ))}
+        </datalist>
+        <input
+          type="text"
+          value={label}
+          onChange={(e) => setLabel(e.target.value)}
+          placeholder="라벨 (선택)"
+          className="flex-1 rounded border border-gray-300 px-2 py-1 text-xs focus:border-blue-500 focus:outline-none"
+        />
+        <div className="flex gap-1">
+          <button
+            type="submit"
+            disabled={saving || !part.trim()}
+            className="rounded bg-blue-600 px-2 py-1 text-xs font-medium text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {saving ? "저장 중..." : "저장"}
+          </button>
+          <button
+            type="button"
+            onClick={onCancel}
+            className="rounded px-2 py-1 text-xs text-gray-500 hover:bg-gray-100"
+          >
+            취소
+          </button>
+        </div>
+      </div>
+      <p className="mt-1 truncate text-[10px] text-gray-400">
+        URL: {r.url}
+      </p>
+    </form>
   );
 }
