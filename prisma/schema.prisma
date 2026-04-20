@@ -32,7 +32,7 @@ model PracticeResource {
   id           String       @id @default(cuid())
   songId       String       @map("song_id")
   conductorId  String?      @map("conductor_id")
-  part         VoicePart    @default(ALL)
+  part         String       @default("전체")
   resourceType ResourceType @default(VIDEO) @map("resource_type")
   url          String
   sourceSite   String?      @map("source_site")
@@ -61,14 +61,6 @@ model UploadedFile {
 
   @@index([conductorId])
   @@map("uploaded_files")
-}
-
-enum VoicePart {
-  ALL
-  SOPRANO
-  ALTO
-  TENOR
-  BASS
 }
 
 enum ResourceType {

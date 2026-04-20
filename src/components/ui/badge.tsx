@@ -11,18 +11,11 @@ export function DifficultyBadge({ difficulty }: { difficulty: string | null }) {
   );
 }
 
+// 자유 문자열 파트 라벨 표시 (레거시 enum 값은 한국어로 변환)
 export function PartBadge({ part }: { part: string }) {
   const label = PART_LABELS[part] ?? part;
-  const colors: Record<string, string> = {
-    ALL: "bg-purple-100 text-purple-800",
-    SOPRANO: "bg-pink-100 text-pink-800",
-    ALTO: "bg-rose-100 text-rose-800",
-    TENOR: "bg-sky-100 text-sky-800",
-    BASS: "bg-indigo-100 text-indigo-800",
-  };
-  const color = colors[part] ?? "bg-gray-100 text-gray-800";
   return (
-    <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium ${color}`}>
+    <span className="inline-flex items-center rounded-full bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
       {label}
     </span>
   );

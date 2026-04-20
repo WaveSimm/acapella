@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/auth-helpers";
 import { z } from "zod";
 
 const patchSchema = z.object({
-  part: z.enum(["ALL", "SOPRANO", "ALTO", "TENOR", "BASS"]).optional(),
+  part: z.string().trim().min(1).max(30).optional(),
   url: z.string().url().optional(),
   label: z.string().max(100).nullable().optional(),
 });

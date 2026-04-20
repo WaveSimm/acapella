@@ -1,17 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useToast } from "@/components/ui/toast";
 import { useConfirm } from "@/components/ui/confirm";
-
-const PART_LABELS: Record<string, string> = {
-  ALL: "전체",
-  SOPRANO: "소프",
-  ALTO: "알토",
-  TENOR: "테너",
-  BASS: "베이스",
-};
+import { COMMON_PARTS, PART_LABELS } from "@/lib/utils";
 
 type ResType = "AUTO" | "VIDEO" | "AUDIO" | "SCORE_PREVIEW" | "MIDI";
 
@@ -37,12 +30,26 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
   const confirm = useConfirm();
   const [showForm, setShowForm] = useState(false);
   const [url, setUrl] = useState("");
-  const [part, setPart] = useState("ALL");
+  const [part, setPart] = useState("전체");
   const [label, setLabel] = useState("");
   const [resType, setResType] = useState<ResType>("AUTO");
   const [adding, setAdding] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [deleting, setDeleting] = useState<string | null>(null);
+
+  // 이 곡에 이미 쓰인 파트 + 공통 파트 추천 (중복 제거)
+  const partSuggestions = useMemo(() => {
+    const seen = new Set<string>();
+    const out: string[] = [];
+    for (const r of resources) {
+      const p = PART_LABELS[r.part] ?? r.part;
+      if (!seen.has(p)) { seen.add(p); out.push(p); }
+    }
+    for (const p of COMMON_PARTS) {
+      if (!seen.has(p)) { seen.add(p); out.push(p); }
+    }
+    return out;
+  }, [resources]);
 
   async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
@@ -76,7 +83,7 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
         return;
       }
       toast.success(`${file.name} 업로드 완료`);
-      setUrl(""); setLabel(""); setPart("ALL"); setResType("AUTO"); setShowForm(false);
+      setUrl(""); setLabel(""); setPart("전체"); setResType("AUTO"); setShowForm(false);
       router.refresh();
     } finally {
       setUploading(false);
@@ -100,7 +107,7 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
     });
     setAdding(false);
     if (res.ok) {
-      setUrl(""); setLabel(""); setPart("ALL"); setResType("AUTO"); setShowForm(false);
+      setUrl(""); setLabel(""); setPart("전체"); setResType("AUTO"); setShowForm(false);
       toast.success("리소스가 추가되었습니다.");
       router.refresh();
     } else {
@@ -190,17 +197,20 @@ export function ResourceEditor({ songId, resources, conductorId }: Props) {
             </div>
             <div>
               <label className="mb-0.5 block text-[10px] text-gray-500">파트</label>
-              <select
+              <input
+                type="text"
                 value={part}
                 onChange={(e) => setPart(e.target.value)}
+                list="part-suggestions"
+                placeholder="예: 전체, S1, A2, 솔로..."
+                required
                 className="w-full rounded border border-gray-300 px-2 py-1.5 text-sm focus:border-blue-500 focus:outline-none"
-              >
-                <option value="ALL">전체</option>
-                <option value="SOPRANO">소프라노</option>
-                <option value="ALTO">알토</option>
-                <option value="TENOR">테너</option>
-                <option value="BASS">베이스</option>
-              </select>
+              />
+              <datalist id="part-suggestions">
+                {partSuggestions.map((p) => (
+                  <option key={p} value={p} />
+                ))}
+              </datalist>
             </div>
           </div>
           <input
@@ -291,7 +301,7 @@ function ResourceRow({
     <div className="flex items-center gap-2 text-xs">
       <span className="rounded bg-blue-50 px-1.5 py-0.5 font-medium text-blue-600">
         {PART_LABELS[r.part] ?? r.part}
-      </span>
+      </span>{" "}
       <span className={`rounded px-1.5 py-0.5 font-medium ${typeColor}`}>{typeLabel}</span>
       <a
         href={r.url}

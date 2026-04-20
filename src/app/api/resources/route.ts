@@ -5,7 +5,7 @@ import { z } from "zod";
 
 const createSchema = z.object({
   songId: z.string().min(1),
-  part: z.enum(["ALL", "SOPRANO", "ALTO", "TENOR", "BASS"]).default("ALL"),
+  part: z.string().trim().min(1).max(30).default("전체"),
   url: z.string().min(1),
   label: z.string().max(100).nullable().optional(),
   resourceType: z.enum(["VIDEO", "AUDIO", "SCORE_PREVIEW", "MIDI"]).optional(),

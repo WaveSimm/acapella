@@ -16,14 +16,18 @@ interface Props {
   resources: Resource[];
 }
 
-const PART_ORDER = ["ALL", "SOPRANO", "ALTO", "TENOR", "BASS"] as const;
-const PART_LABELS: Record<string, string> = {
+// 레거시 enum 값 보정용. 신규 입력은 이미 자유 문자열.
+const PART_ALIAS: Record<string, string> = {
   ALL: "전체",
-  SOPRANO: "소프",
+  SOPRANO: "소프라노",
   ALTO: "알토",
   TENOR: "테너",
   BASS: "베이스",
 };
+
+function normalizePart(p: string): string {
+  return PART_ALIAS[p] ?? p;
+}
 
 function isYouTubeUrl(url: string): boolean {
   return url.includes("youtube.com") || url.includes("youtu.be");
@@ -83,25 +87,16 @@ function sourceTypeBadge(r: Resource): string {
 export function SongPlayer({ resources }: Props) {
   const playable = resources.filter(isInlinePlayable);
 
-  // 파트별 그룹
+  // 파트별 그룹 (등장 순서 유지)
   const grouped = useMemo(() => {
     const map = new Map<string, Resource[]>();
     for (const r of playable) {
-      const arr = map.get(r.part) ?? [];
+      const key = normalizePart(r.part);
+      const arr = map.get(key) ?? [];
       arr.push(r);
-      map.set(r.part, arr);
+      map.set(key, arr);
     }
-    const ordered: { part: string; items: Resource[] }[] = [];
-    for (const p of PART_ORDER) {
-      const items = map.get(p);
-      if (items && items.length > 0) ordered.push({ part: p, items });
-    }
-    for (const [p, items] of map) {
-      if (!PART_ORDER.includes(p as typeof PART_ORDER[number])) {
-        ordered.push({ part: p, items });
-      }
-    }
-    return ordered;
+    return [...map.entries()].map(([part, items]) => ({ part, items }));
   }, [playable]);
 
   const [activeId, setActiveId] = useState<string | null>(playable[0]?.id ?? null);
@@ -134,8 +129,8 @@ export function SongPlayer({ resources }: Props) {
       <ul className="mb-3 divide-y divide-gray-100 overflow-hidden rounded-lg border border-gray-200 bg-white">
         {grouped.map(({ part, items }) => (
           <li key={part} className="flex items-start gap-3 px-3 py-2">
-            <span className="w-10 shrink-0 rounded bg-blue-50 px-1.5 py-0.5 text-center text-[11px] font-medium text-blue-600">
-              {PART_LABELS[part] ?? part}
+            <span className="shrink-0 rounded bg-blue-50 px-2 py-0.5 text-[11px] font-medium text-blue-600">
+              {part}
             </span>
             <div className="flex min-w-0 flex-1 flex-wrap gap-1.5">
               {items.map((r) => {
