@@ -1,0 +1,46 @@
+node_modules/
+.next/
+out/
+.env
+.env.local
+*.tsbuildinfo
+next-env.d.ts
+
+# Prisma
+prisma/migrations/
+
+# Python scraper
+scripts/scraper/__pycache__/
+scripts/scraper/*.pyc
+scripts/scraper/venv/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# bkit state
+.bkit/
+
+# Claude local state
+.claude/projects/
+.claude/settings.local.json
+
+# Screenshots
+*.png
+*.jpg
+# Allow app icons
+!src/app/apple-icon.png
+# Allow PPT embedded screenshots
+!scripts/ppt/screenshots/*.png
+.vercel
+
+# Score analysis artifacts (copyrighted source material — do not commit)
+scripts/score-analysis/jub*/
+scripts/score-analysis/frames/
+scripts/score-analysis/song_frames/
+scripts/score-analysis/videos/
+scripts/score-analysis/*.mp4
