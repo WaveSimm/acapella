@@ -30,8 +30,10 @@ if (process.env.KAKAO_CLIENT_ID) {
 // 허용된 이메일 화이트리스트 (OAuth 설정 전 임시 인증)
 const ALLOWED_EMAILS = (process.env.ALLOWED_EMAILS || "").split(",").map((e) => e.trim()).filter(Boolean);
 
-// 간편 로그인: 개발 모드 또는 화이트리스트 설정 시 활성화
-if (process.env.NODE_ENV === "development" || ALLOWED_EMAILS.length > 0) {
+// 간편 로그인: 개발 모드에서만, 또는 OAuth provider가 하나도 설정되지 않은 부트스트랩 상황에서만 허용
+const hasOAuthProvider = !!process.env.GOOGLE_CLIENT_ID || !!process.env.KAKAO_CLIENT_ID;
+const allowCredentials = process.env.NODE_ENV === "development" || !hasOAuthProvider;
+if (allowCredentials && ALLOWED_EMAILS.length > 0) {
   providers.push(
     CredentialsProvider({
       id: "dev-login",

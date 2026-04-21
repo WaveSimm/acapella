@@ -37,7 +37,8 @@ export async function POST(
   const rehearsal = await prisma.rehearsal.create({
     data: {
       ensembleId: params.ensembleId,
-      date: parsed.data.date ? new Date(parsed.data.date) : null,
+      // KST 00:00을 저장해야 @db.Date 비교가 getUTCDate와 일치
+      date: parsed.data.date ? new Date(`${parsed.data.date}T00:00:00+09:00`) : null,
       startTime: parsed.data.startTime ?? null,
       location: parsed.data.location ?? null,
       note: parsed.data.note ?? null,

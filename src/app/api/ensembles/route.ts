@@ -3,11 +3,12 @@ import { prisma } from "@/lib/prisma";
 import { requireApprovedUser } from "@/lib/auth-helpers";
 import { z } from "zod";
 
+import { randomBytes } from "crypto";
+
 function generateShareCode(): string {
   const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  let code = "";
-  for (let i = 0; i < 6; i++) code += chars[Math.floor(Math.random() * chars.length)];
-  return code;
+  const bytes = randomBytes(6);
+  return Array.from(bytes, (b) => chars[b % chars.length]).join("");
 }
 
 const createSchema = z.object({

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useId, useState } from "react";
 
 const DEFAULT_SOUND_FONT =
   "https://storage.googleapis.com/magentadata/js/soundfonts/sgm_plus";
@@ -74,7 +74,8 @@ export function MidiPlayer({ src }: Props) {
     return () => { cancelled = true; };
   }, [status]);
 
-  const visualizerId = `midi-viz-${src.replace(/[^a-z0-9]/gi, "").slice(-10)}`;
+  const reactId = useId();
+  const visualizerId = `midi-viz${reactId.replace(/[:]/g, "")}`;
 
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">

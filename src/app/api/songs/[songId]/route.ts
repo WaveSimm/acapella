@@ -64,15 +64,17 @@ export async function DELETE(
     return NextResponse.json({ error: "관리자 권한이 필요합니다." }, { status: 403 });
   }
 
-  const [specCount, resCount, esCount] = await Promise.all([
+  const [specCount, resCount, esCount, rsCount] = await Promise.all([
     prisma.conductorSpec.count({ where: { songId: params.songId } }),
     prisma.practiceResource.count({ where: { songId: params.songId } }),
     prisma.ensembleSong.count({ where: { songId: params.songId } }),
+    prisma.rehearsalSong.count({ where: { songId: params.songId } }),
   ]);
   const problems: string[] = [];
   if (specCount > 0) problems.push(`분석 ${specCount}`);
   if (resCount > 0) problems.push(`리소스 ${resCount}`);
   if (esCount > 0) problems.push(`합창단 등록 ${esCount}`);
+  if (rsCount > 0) problems.push(`연습일 등록 ${rsCount}`);
   if (problems.length > 0) {
     return NextResponse.json(
       { error: `${problems.join(", ")}건이 연결되어 있어 삭제할 수 없습니다.` },

@@ -41,7 +41,7 @@ model PracticeResource {
   createdAt    DateTime     @default(now()) @map("created_at")
 
   song         Song          @relation(fields: [songId], references: [id])
-  conductor    Conductor?    @relation(fields: [conductorId], references: [id])
+  conductor    Conductor?    @relation(fields: [conductorId], references: [id], onDelete: SetNull)
   file         UploadedFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
   @@map("practice_resources")
@@ -129,7 +129,7 @@ model ConductorSpec {
   updatedAt       DateTime        @updatedAt @map("updated_at")
 
   song            Song            @relation(fields: [songId], references: [id])
-  conductor       Conductor       @relation(fields: [conductorId], references: [id])
+  conductor       Conductor       @relation(fields: [conductorId], references: [id], onDelete: Cascade)
   forkedFrom      ConductorSpec?  @relation("SpecFork", fields: [forkedFromId], references: [id])
   forks           ConductorSpec[] @relation("SpecFork")
 

@@ -364,10 +364,11 @@ function RehearsalForm({
 
 function formatDateLabel(date: string | null): string {
   if (!date) return "날짜 미정";
-  const d = new Date(date);
-  const yyyy = d.getFullYear();
-  const mm = String(d.getMonth() + 1).padStart(2, "0");
-  const dd = String(d.getDate()).padStart(2, "0");
-  const weekday = ["일", "월", "화", "수", "목", "금", "토"][d.getDay()];
+  // 서버는 YYYY-MM-DD 문자열로 넘겨주므로 UTC로 안전 파싱 후 UTC getter 사용 (TZ 이동 방지)
+  const d = new Date(`${date}T00:00:00Z`);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, "0");
+  const dd = String(d.getUTCDate()).padStart(2, "0");
+  const weekday = ["일", "월", "화", "수", "목", "금", "토"][d.getUTCDay()];
   return `${yyyy}.${mm}.${dd} (${weekday})`;
 }

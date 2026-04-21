@@ -42,7 +42,7 @@ export async function PATCH(
     where: { id: params.rehearsalId },
     data: {
       ...(parsed.data.date !== undefined && {
-        date: parsed.data.date ? new Date(parsed.data.date) : null,
+        date: parsed.data.date ? new Date(`${parsed.data.date}T00:00:00+09:00`) : null,
       }),
       ...(parsed.data.startTime !== undefined && { startTime: parsed.data.startTime }),
       ...(parsed.data.location !== undefined && { location: parsed.data.location }),

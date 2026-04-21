@@ -25,11 +25,31 @@ export async function PATCH(
   const parsed = patchSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: "입력값이 올바르지 않습니다." }, { status: 400 });
 
+  // URL 재작성: /api/files/ prefix는 본인 소유 파일만 허용
+  let nextUrl: string | undefined;
+  if (parsed.data.url !== undefined) {
+    const newUrl = parsed.data.url;
+    const filesMatch = newUrl.match(/^\/api\/files\/([a-z0-9]+)$/i);
+    if (filesMatch) {
+      const fid = filesMatch[1];
+      const f = await prisma.uploadedFile.findUnique({
+        where: { id: fid },
+        select: { conductorId: true },
+      });
+      if (!f || (f.conductorId && f.conductorId !== user.id)) {
+        return NextResponse.json({ error: "다른 사용자의 파일은 참조할 수 없습니다." }, { status: 403 });
+      }
+    }
+    // drive 공유 URL 자동 변환
+    const driveShare = newUrl.match(/drive\.google\.com\/file\/d\/([^/]+)\//);
+    nextUrl = driveShare ? `https://drive.google.com/uc?export=download&id=${driveShare[1]}` : newUrl;
+  }
+
   await prisma.practiceResource.update({
     where: { id: params.resourceId },
     data: {
       ...(parsed.data.part !== undefined && { part: parsed.data.part }),
-      ...(parsed.data.url !== undefined && { url: parsed.data.url }),
+      ...(nextUrl !== undefined && { url: nextUrl }),
       ...(parsed.data.label !== undefined && { label: parsed.data.label }),
     },
   });
