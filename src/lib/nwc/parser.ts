@@ -1,11 +1,12 @@
 // NWC V2.75 파서 - pipe-delimited 커맨드를 AST로 변환
 import { inflateSync } from "zlib";
 
-// NWC 파일은 한글을 CP949(EUC-KR)로 저장한다. 파서는 latin1으로 바이트를 보존한 뒤
-// quoted 텍스트 필드에 한해 이 함수로 디코딩한다. ASCII는 그대로 통과, 한글은 복원.
+// NWC는 편집 환경에 따라 한글을 UTF-8 또는 CP949(EUC-KR) 로 저장한다.
+// 파서는 latin1으로 바이트를 보존하고, quoted 텍스트 필드에 한해 아래 함수로 디코딩.
+// UTF-8로 먼저 시도 (유효하면 그대로), 실패 시 CP949 fallback. ASCII는 short circuit.
 const EUCKR = new TextDecoder("euc-kr");
+const UTF8_STRICT = new TextDecoder("utf-8", { fatal: true });
 function decodeKorean(latin1: string): string {
-  // 모든 바이트가 ASCII 범위면 그대로 (디코딩 비용 생략)
   let asciiOnly = true;
   for (let i = 0; i < latin1.length; i++) {
     if (latin1.charCodeAt(i) > 0x7f) {
@@ -16,9 +17,13 @@ function decodeKorean(latin1: string): string {
   if (asciiOnly) return latin1;
   const bytes = Buffer.from(latin1, "latin1");
   try {
-    return EUCKR.decode(bytes);
+    return UTF8_STRICT.decode(bytes);
   } catch {
-    return latin1;
+    try {
+      return EUCKR.decode(bytes);
+    } catch {
+      return latin1;
+    }
   }
 }
 
