@@ -78,6 +78,31 @@ export interface Staff {
   octaveShift: number;
   measures: Measure[];
   lyricRaw?: string; // 원본 Lyric1 텍스트
+  hidden?: boolean;
+}
+
+function normalizeTimeSig(sig: string): string {
+  if (sig === "AllaBreve") return "2/2";
+  if (sig === "Common") return "4/4";
+  return sig;
+}
+
+// NWC Tempo: "Base:Half|Tempo:63" 이면 half note = 63 BPM → quarter-note BPM = 126
+function resolveTempo(base: string | undefined, tempo: number): number {
+  const mult: Record<string, number> = {
+    Whole: 4,
+    Half: 2,
+    "4th": 1,
+    Quarter: 1,
+    "8th": 0.5,
+    "16th": 0.25,
+    "Dotted Whole": 6,
+    "Dotted Half": 3,
+    "Dotted 4th": 1.5,
+    "Dotted 8th": 0.75,
+  };
+  const m = mult[base ?? "4th"] ?? 1;
+  return tempo * m;
 }
 
 export interface ParsedScore {
@@ -301,7 +326,8 @@ export function parseNwc(input: Buffer | string): ParsedScore {
       score.composer = decodeKorean(p.Author || "");
     } else if (cmd === "Tempo") {
       if (!tempoFound) {
-        score.tempo = parseInt(p.Tempo, 10) || 120;
+        const rawTempo = parseInt(p.Tempo, 10) || 120;
+        score.tempo = Math.round(resolveTempo(p.Base, rawTempo));
         tempoFound = true;
       }
     } else if (cmd === "Key") {
@@ -316,11 +342,12 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         current.fifths = parsed.fifths;
       }
     } else if (cmd === "TimeSig") {
+      const norm = normalizeTimeSig(p.Signature);
       if (!timeSigFound) {
-        score.timeSig = p.Signature;
+        score.timeSig = norm;
         timeSigFound = true;
       }
-      if (current) current.timeSig = p.Signature;
+      if (current) current.timeSig = norm;
     } else if (cmd === "AddStaff") {
       current = {
         name: decodeKorean(p.Name || "Staff" + score.staves.length),
@@ -342,11 +369,18 @@ export function parseNwc(input: Buffer | string): ParsedScore {
     } else if (cmd === "StaffProperties" && current) {
       if (p.Channel) current.channel = parseInt(p.Channel, 10) || 1;
       if (p.Volume) current.volume = parseInt(p.Volume, 10) || 127;
+      // 숨김 스태프는 나중에 필터링
+      if (p.Visible === "N") current.hidden = true;
     } else if (cmd === "StaffInstrument" && current) {
       if (p.Patch !== undefined) current.patch = parseInt(p.Patch, 10) || 0;
       if (p.Trans) current.octaveShift = Math.round((parseInt(p.Trans, 10) || 0) / 12);
     } else if (cmd === "Clef" && current) {
       current.clef = p.Type || "Treble";
+      // OctaveShift 적용 (초기 및 중간 변경 모두)
+      // "Octave Down" → -1, "Octave Up" → +1
+      if (p.OctaveShift === "Octave Down") current.octaveShift = -1;
+      else if (p.OctaveShift === "Octave Up") current.octaveShift = 1;
+      else if (p.OctaveShift === undefined) current.octaveShift = 0;
     } else if (cmd === "Lyric1" && current && typeof p.Text === "string") {
       // 첫 번째 verse만 사용 (MVP). 여러 verse는 차후 number 속성으로.
       current.lyricRaw = decodeKorean(p.Text);
@@ -408,6 +442,11 @@ export function parseNwc(input: Buffer | string): ParsedScore {
     const syllables = tokenizeLyrics(staff.lyricRaw);
     assignLyricsToNotes(staff, syllables);
   }
+
+  // 숨김(Visible:N) 스태프 제외
+  score.staves = score.staves.filter((s) => !s.hidden);
+  // partId 재할당 (인덱스 기반)
+  score.staves.forEach((s, i) => { s.partId = "P" + (i + 1); });
 
   return score;
 }
