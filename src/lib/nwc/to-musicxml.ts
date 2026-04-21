@@ -47,6 +47,9 @@ export function buildMusicXml(parsed: ParsedScore): string {
       effectiveMaxCount--;
     }
 
+    // 이전 노트가 tie를 시작했는지 추적 (마디 경계 넘어 유지)
+    let prevTied = false;
+
     for (let mi = 0; mi < effectiveMaxCount; mi++) {
       const m = staff.measures[mi] ?? { notes: [] }; // 짧은 스태프는 빈 마디로 대체
 
@@ -80,7 +83,11 @@ export function buildMusicXml(parsed: ParsedScore): string {
         if (n.type === "rest") {
           const dots = "<dot/>".repeat(n.dots || 0);
           lines.push(`      <note><rest/><duration>${n.durDivisions}</duration><type>${n.durType}</type>${dots}</note>`);
+          // 쉼표 중간엔 tie 연결 없음
+          prevTied = false;
         } else {
+          const thisStopsTie = prevTied;
+          const thisStartsTie = n.tied;
           for (let pi = 0; pi < n.pitches.length; pi++) {
             const p = n.pitches[pi];
             const parts: string[] = [];
@@ -91,7 +98,9 @@ export function buildMusicXml(parsed: ParsedScore): string {
             parts.push(`<octave>${p.octave}</octave>`);
             parts.push("</pitch>");
             parts.push(`<duration>${n.durDivisions}</duration>`);
-            if (n.tied) parts.push('<tie type="start"/>');
+            // <tie> 음악 요소 — stop 먼저, start 나중 (MusicXML 순서)
+            if (thisStopsTie) parts.push('<tie type="stop"/>');
+            if (thisStartsTie) parts.push('<tie type="start"/>');
             parts.push(`<type>${n.durType}</type>`);
             for (let d = 0; d < (n.dots || 0); d++) parts.push("<dot/>");
             if (p.explicitAccidental !== null && p.explicitAccidental !== undefined) {
@@ -99,19 +108,20 @@ export function buildMusicXml(parsed: ParsedScore): string {
               const accName = accMap[p.explicitAccidental];
               if (accName) parts.push(`<accidental>${accName}</accidental>`);
             }
-            // notations (slur, tied 등)은 첫 pitch(chord 노트)에만
+            // notations (slur, tied 시각 곡선 등)은 첫 pitch(chord 노트)에만
             if (pi === 0) {
               const notations: string[] = [];
               if (n.slurEvent) notations.push(`<slur type="${n.slurEvent}" number="1"/>`);
-              if (n.tied) notations.push(`<tied type="start"/>`);
+              if (thisStopsTie) notations.push(`<tied type="stop"/>`);
+              if (thisStartsTie) notations.push(`<tied type="start"/>`);
               if (notations.length > 0) parts.push(`<notations>${notations.join("")}</notations>`);
             }
-            // 가사: 첫 pitch (chord 노트)에만 붙임
             if (pi === 0 && n.lyric) {
               parts.push(`<lyric number="1"><syllabic>${n.lyric.syllabic}</syllabic><text>${escapeXml(n.lyric.text)}</text></lyric>`);
             }
             lines.push(`      <note>${parts.join("")}</note>`);
           }
+          prevTied = thisStartsTie;
         }
       }
       lines.push(`    </measure>`);
