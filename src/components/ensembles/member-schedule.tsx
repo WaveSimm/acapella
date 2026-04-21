@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { SongPlayer } from "@/components/practice/song-player";
+import { NwcScorePlayer } from "@/components/practice/nwc-score-player";
 
 interface Resource {
   id: string;
@@ -119,7 +120,21 @@ function RehearsalCard({ rehearsal }: { rehearsal: MemberRehearsal }) {
                       </div>
                     )}
                     {rs.song.resources.length > 0 ? (
-                      <SongPlayer resources={rs.song.resources} />
+                      <div className="space-y-4">
+                        {(() => {
+                          const nwcMidi = rs.song.resources.find(
+                            (r) => r.sourceSite === "NWC 변환" && r.resourceType === "MIDI",
+                          );
+                          const nwcScore = rs.song.resources.find(
+                            (r) => r.sourceSite === "NWC 변환" && r.resourceType === "SCORE_PREVIEW",
+                          );
+                          if (nwcMidi && nwcScore) {
+                            return <NwcScorePlayer midiSrc={nwcMidi.url} musicXmlSrc={nwcScore.url} />;
+                          }
+                          return null;
+                        })()}
+                        <SongPlayer resources={rs.song.resources} />
+                      </div>
                     ) : (
                       <p className="rounded-lg border border-dashed border-gray-300 p-4 text-center text-xs text-gray-400">
                         연습 리소스 없음
