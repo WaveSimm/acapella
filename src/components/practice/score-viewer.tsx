@@ -56,11 +56,10 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         if (rules) {
           rules.RenderSingleHorizontalStaffline = true;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
+          // 가사가 마디 폭 확장에 영향 주지 않도록 — 이게 있으면 음표 duration만으로 배치가 결정됨.
+          // 같은 TimeSig 마디들은 총 duration이 같으니 자연스럽게 동일 폭이 되고,
+          // 마디 내부 음표는 자신의 duration에 비례해 배치됨.
           if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
-          // [단계3] 모든 마디 동일 폭 — 같은 TimeSig(2/2)에서 모든 마디의 총 duration이 같으므로
-          // 마디 폭도 동일해야 자연스러움. 음표는 마디 내에서 duration 비례로 배치됨.
-          if ("FixedMeasureWidth" in rules) rules.FixedMeasureWidth = true;
-          if ("FixedMeasureWidthFixedValue" in rules) rules.FixedMeasureWidthFixedValue = 16.0;
         }
         // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
