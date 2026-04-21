@@ -63,18 +63,36 @@ export async function POST(
 
   let created = 0;
   let skipped = 0;
-  const failedFiles: string[] = [];
+  const unmatched: {
+    fileId: string;
+    name: string;
+    parsedTitle: string;
+    parsedPart: string;
+    mimeType: string;
+  }[] = [];
   const createdItems: { name: string; song: string; part: string }[] = [];
 
   for (const file of files) {
     const parsed = parseFileName(file.name);
     if (!parsed) {
-      failedFiles.push(file.name);
+      unmatched.push({
+        fileId: file.id,
+        name: file.name,
+        parsedTitle: file.name,
+        parsedPart: "전체",
+        mimeType: file.mimeType,
+      });
       continue;
     }
     const song = matchSong(songs, parsed.title);
     if (!song) {
-      failedFiles.push(file.name);
+      unmatched.push({
+        fileId: file.id,
+        name: file.name,
+        parsedTitle: parsed.title,
+        parsedPart: parsed.part,
+        mimeType: file.mimeType,
+      });
       continue;
     }
     const url = driveFileUrl(file.id);
@@ -99,12 +117,25 @@ export async function POST(
     createdItems.push({ name: file.name, song: song.titleKo, part: parsed.part });
   }
 
+  // 미매칭 파일을 파싱된 제목으로 그룹핑
+  const groupMap = new Map<string, typeof unmatched>();
+  for (const u of unmatched) {
+    const key = u.parsedTitle.trim().toLowerCase();
+    const list = groupMap.get(key);
+    if (list) list.push(u);
+    else groupMap.set(key, [u]);
+  }
+  const unmatchedGroups = Array.from(groupMap.entries()).map(([, files]) => ({
+    title: files[0].parsedTitle,
+    files,
+  }));
+
   return NextResponse.json({
     totalFiles: files.length,
     created,
     skipped,
-    failed: failedFiles.length,
-    failedFiles,
+    failed: unmatched.length,
+    unmatchedGroups,
     createdItems,
   });
 }
