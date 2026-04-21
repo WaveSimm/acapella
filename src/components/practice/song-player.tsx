@@ -216,13 +216,20 @@ function AudioPlayer({ src, id, onError }: { src: string; id: string; onError: (
     abRef.current = { abMode, pointA, pointB, dragging };
   }, [abMode, pointA, pointB, dragging]);
 
+  const lastSeekRef = useRef(0);
+
   const tick = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
     setCurrentTime(audio.currentTime);
     const s = abRef.current;
     if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
-      if (audio.currentTime >= s.pointB) audio.currentTime = s.pointA;
+      const now = performance.now();
+      // 쿨다운: 브라우저가 seek를 처리하는 동안 중복 jump 방지
+      if (audio.currentTime >= s.pointB && now - lastSeekRef.current > 200) {
+        lastSeekRef.current = now;
+        audio.currentTime = s.pointA;
+      }
     }
     rafRef.current = requestAnimationFrame(tick);
   }, []);
