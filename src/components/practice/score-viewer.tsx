@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 
 interface Props {
@@ -29,34 +29,8 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
   const viewportRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
-  const [viewportHeight, setViewportHeight] = useState(180);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errMsg, setErrMsg] = useState("");
-
-  // 렌더 후 가시 스태프들의 상하 경계 측정 → 뷰포트 높이 갱신
-  const resizeViewport = useCallback(() => {
-    const mount = mountRef.current;
-    if (!mount) return;
-    requestAnimationFrame(() => {
-      const staves = mount.querySelectorAll<SVGGElement>("g.vf-stave");
-      if (staves.length === 0) return;
-      const mountRect = mount.getBoundingClientRect();
-      let minTop = Infinity;
-      let maxBottom = -Infinity;
-      // 한 줄 렌더링이므로 모든 stave가 동일 시스템.
-      // 가시 stave들의 Y 범위 전체를 커버하도록.
-      staves.forEach((s) => {
-        const r = s.getBoundingClientRect();
-        if (r.top < minTop) minTop = r.top;
-        if (r.bottom > maxBottom) maxBottom = r.bottom;
-      });
-      if (!isFinite(minTop) || !isFinite(maxBottom)) return;
-      const h = Math.max(80, Math.ceil(maxBottom - minTop + 40));
-      // title/label 영역 상단 패딩을 위해 추가 여유
-      setViewportHeight(h + 30);
-      mountRect; // unused
-    });
-  }, []);
 
   // 1) 최초 로드 + 단일 horizontal line 렌더
   useEffect(() => {
@@ -98,7 +72,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         const tempoBpmVal = (osmd.Sheet as any).DefaultStartTempoInBpm ?? null;
         setStatus("ready");
         onReady?.({ title, partNames, tempoBpm: tempoBpmVal, duration: null });
-        resizeViewport();
       } catch (e) {
         if (!cancelled) {
           setErrMsg(e instanceof Error ? e.message : String(e));
@@ -109,7 +82,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     return () => {
       cancelled = true;
     };
-  }, [src, onReady, zoom, resizeViewport]);
+  }, [src, onReady, zoom]);
 
   // 2) 파트 선택 → 가시성 토글 + 재렌더 + 뷰포트 리사이즈
   useEffect(() => {
@@ -126,9 +99,8 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     });
     if (changed) {
       osmd.render();
-      resizeViewport();
     }
-  }, [highlightPart, status, resizeViewport]);
+  }, [highlightPart, status]);
 
   // 3) zoom 변경 시 재렌더
   useEffect(() => {
@@ -139,7 +111,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (osmd as any).zoom = zoom;
       osmd.render();
-      resizeViewport();
     }
   }, [zoom, status]);
 
@@ -196,10 +167,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       <div
         ref={viewportRef}
         className="relative w-full overflow-x-auto overflow-y-hidden"
-        style={{
-          height: status === "loading" ? 0 : viewportHeight,
-          transition: "height 200ms ease",
-        }}
       >
         <div ref={mountRef} className="inline-block" style={{ minWidth: "100%" }} />
       </div>
