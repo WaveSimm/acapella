@@ -1,6 +1,27 @@
 // NWC V2.75 파서 - pipe-delimited 커맨드를 AST로 변환
 import { inflateSync } from "zlib";
 
+// NWC 파일은 한글을 CP949(EUC-KR)로 저장한다. 파서는 latin1으로 바이트를 보존한 뒤
+// quoted 텍스트 필드에 한해 이 함수로 디코딩한다. ASCII는 그대로 통과, 한글은 복원.
+const EUCKR = new TextDecoder("euc-kr");
+function decodeKorean(latin1: string): string {
+  // 모든 바이트가 ASCII 범위면 그대로 (디코딩 비용 생략)
+  let asciiOnly = true;
+  for (let i = 0; i < latin1.length; i++) {
+    if (latin1.charCodeAt(i) > 0x7f) {
+      asciiOnly = false;
+      break;
+    }
+  }
+  if (asciiOnly) return latin1;
+  const bytes = Buffer.from(latin1, "latin1");
+  try {
+    return EUCKR.decode(bytes);
+  } catch {
+    return latin1;
+  }
+}
+
 export interface Pitch {
   step: string;
   octave: number;
@@ -271,8 +292,8 @@ export function parseNwc(input: Buffer | string): ParsedScore {
   for (const { cmd, props } of lines) {
     const p = props as Record<string, string>;
     if (cmd === "SongInfo") {
-      score.songTitle = p.Title || "";
-      score.composer = p.Author || "";
+      score.songTitle = decodeKorean(p.Title || "");
+      score.composer = decodeKorean(p.Author || "");
     } else if (cmd === "Tempo") {
       if (!tempoFound) {
         score.tempo = parseInt(p.Tempo, 10) || 120;
@@ -297,8 +318,8 @@ export function parseNwc(input: Buffer | string): ParsedScore {
       if (current) current.timeSig = p.Signature;
     } else if (cmd === "AddStaff") {
       current = {
-        name: p.Name || "Staff" + score.staves.length,
-        label: p.Label || p.Name || "",
+        name: decodeKorean(p.Name || "Staff" + score.staves.length),
+        label: decodeKorean(p.Label || p.Name || ""),
         partId: "P" + (score.staves.length + 1),
         channel: 1,
         patch: 0,
@@ -323,7 +344,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
       current.clef = p.Type || "Treble";
     } else if (cmd === "Lyric1" && current && typeof p.Text === "string") {
       // 첫 번째 verse만 사용 (MVP). 여러 verse는 차후 number 속성으로.
-      current.lyricRaw = p.Text;
+      current.lyricRaw = decodeKorean(p.Text);
     } else if (cmd === "Bar" && current) {
       currentMeasure = { notes: [] };
       current.measures.push(currentMeasure);
@@ -393,11 +414,10 @@ interface SyllableToken {
 }
 
 function tokenizeLyrics(raw: string): SyllableToken[] {
-  // NWC 이스케이프 처리: \' → '  ,  \\ → \  ,  \n 은 verse 구분자 (literal 2-char)
-  // Verse 1만 사용 (MVP)
-  const verses = raw.split("\\n");
-  const verse1 = verses[0] || "";
-  const unescaped = verse1.replace(/\\'/g, "'").replace(/\\"/g, '"');
+  // NWC 이스케이프: \' → '  ,  \\ → \  ,  \n 은 verse 구분자 (literal 2-char)
+  // 긴 곡은 여러 verse가 \n 으로 구분되어 전체 멜로디를 커버한다. 모두 연결해 사용.
+  const joined = raw.split("\\n").filter((v) => v.trim().length > 0).join(" ");
+  const unescaped = joined.replace(/\\'/g, "'").replace(/\\"/g, '"');
 
   const tokens: SyllableToken[] = [];
   let buf = "";
