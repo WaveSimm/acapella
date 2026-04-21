@@ -114,7 +114,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     }
   }, [zoom, status]);
 
-  // 4) 커서 이동 (스크롤은 추후 구현)
+  // 4) 커서 이동 + 가로 스크롤
   useEffect(() => {
     if (status !== "ready" || !osmdRef.current || cursorTime == null) return;
     const osmd = osmdRef.current;
@@ -145,10 +145,39 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         curr = getCurrent();
       }
       try { cursor.update?.(); } catch { /* noop */ }
+
+      scrollCursorIntoView();
     } catch (e) {
       console.warn("[ScoreViewer] cursor sync error:", e);
     }
   }, [cursorTime, tempoBpm, status]);
+
+  // 커서가 뷰포트 중앙 좌측 (30%) 지점에 오도록 가로 스크롤
+  function scrollCursorIntoView() {
+    const osmd = osmdRef.current;
+    const viewport = viewportRef.current;
+    if (!osmd || !viewport) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cursor = osmd.cursor as any;
+    const cursorEl: HTMLElement | undefined = cursor?.cursorElement;
+    if (!cursorEl) return;
+    const cursorRect = cursorEl.getBoundingClientRect();
+    if (cursorRect.height === 0 && cursorRect.width === 0) return;
+    const viewportRect = viewport.getBoundingClientRect();
+    const cursorXInContent = cursorRect.left - viewportRect.left + viewport.scrollLeft;
+
+    // 커서가 뷰포트 가시 영역의 20%~80% 범위 밖으로 벗어났을 때만 스크롤
+    const relativeX = cursorXInContent - viewport.scrollLeft;
+    const leftThreshold = viewportRect.width * 0.2;
+    const rightThreshold = viewportRect.width * 0.8;
+    if (relativeX >= leftThreshold && relativeX <= rightThreshold) return;
+
+    // 커서를 좌측 30% 위치에 배치
+    const targetScroll = Math.max(0, cursorXInContent - viewportRect.width * 0.3);
+    if (Math.abs(viewport.scrollLeft - targetScroll) > 10) {
+      viewport.scrollTo({ left: targetScroll, behavior: "smooth" });
+    }
+  }
 
   if (status === "error") {
     return (
