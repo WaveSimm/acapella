@@ -1,15 +1,18 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 
 interface Props {
   src: string;
+  /** 파트 이름 (예: "Sop"). null이면 전체. 선택 시 해당 스태프만 표시 */
   highlightPart?: string | null;
-  /** 재생 현재 시간 (초). 값이 변하면 OSMD 커서를 해당 위치로 이동. */
+  /** 재생 현재 시간 (초) */
   cursorTime?: number | null;
-  /** 악보 Tempo (BPM). 커서를 시간 → 마디 위치 매핑할 때 사용. */
+  /** 악보 Tempo (BPM) */
   tempoBpm?: number;
+  /** OSMD 줌 배율 (1.0 = 기본). 기본값 0.5 */
+  zoom?: number;
   onReady?: (info: ScoreInfo) => void;
 }
 
@@ -25,16 +28,36 @@ interface SystemRect {
   height: number;
 }
 
-export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady }: Props) {
-  const viewportRef = useRef<HTMLDivElement>(null);  // 고정 높이 스크롤 컨테이너
-  const mountRef = useRef<HTMLDivElement>(null);     // OSMD 가 그리는 전체 악보
+const DEFAULT_ZOOM = 0.5;
+
+export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, onReady }: Props) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const mountRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const systemsRef = useRef<SystemRect[]>([]);
-  const viewportHeightRef = useRef<number>(260);
+  const [viewportHeight, setViewportHeight] = useState(260);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errMsg, setErrMsg] = useState("");
 
-  // 1) 로드 + 렌더
+  // 재렌더 + 시스템 재측정 + 뷰포트 높이 갱신
+  const remeasure = useCallback(() => {
+    const osmd = osmdRef.current;
+    const mount = mountRef.current;
+    if (!osmd || !mount) return;
+    // 가시 파트 개수 기준으로 시스템 그룹핑
+    const instruments = osmd.Sheet.Instruments ?? [];
+    const visibleCount = instruments.filter((i) => i.Visible).length || 1;
+    // DOM 레이아웃 완료 후 측정
+    requestAnimationFrame(() => {
+      const systems = measureSystems(mount, visibleCount);
+      systemsRef.current = systems;
+      const maxH = systems.reduce((m, s) => Math.max(m, s.height), 0);
+      const h = Math.max(140, Math.ceil(maxH + 40));
+      setViewportHeight(h);
+    });
+  }, []);
+
+  // 1) 최초 로드 + 렌더
   useEffect(() => {
     if (!mountRef.current) return;
     let cancelled = false;
@@ -56,22 +79,15 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
         const xml = await res.text();
         await osmd.load(xml);
         if (cancelled) return;
+        osmd.zoom = zoom;
         osmd.render();
         const title = osmd.Sheet.Title?.text ?? "";
         const partNames: string[] = (osmd.Sheet.Instruments ?? []).map((ins) => ins.Name || "");
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const tempoBpm = (osmd.Sheet as any).DefaultStartTempoInBpm ?? null;
-
-        // 시스템 경계 측정 (첫 번째 렌더 직후)
-        const systems = measureSystems(mountRef.current!, partNames.length || 1);
-        systemsRef.current = systems;
-        // 가장 큰 시스템 높이에 맞춰 뷰포트 높이 결정 (+여백)
-        const maxH = systems.reduce((m, s) => Math.max(m, s.height), 0);
-        viewportHeightRef.current = Math.max(200, Math.ceil(maxH + 24));
-        if (viewportRef.current) viewportRef.current.style.height = viewportHeightRef.current + "px";
-
+        const tempoBpmVal = (osmd.Sheet as any).DefaultStartTempoInBpm ?? null;
         setStatus("ready");
-        onReady?.({ title, partNames, tempoBpm, duration: null });
+        onReady?.({ title, partNames, tempoBpm: tempoBpmVal, duration: null });
+        remeasure();
       } catch (e) {
         if (!cancelled) {
           setErrMsg(e instanceof Error ? e.message : String(e));
@@ -82,9 +98,41 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
     return () => {
       cancelled = true;
     };
-  }, [src, onReady]);
+  }, [src, onReady, zoom, remeasure]);
 
-  // 2) 커서 이동 + 시스템 단위 스크롤
+  // 2) 파트 선택 → 가시성 토글 + 재렌더
+  useEffect(() => {
+    if (status !== "ready" || !osmdRef.current) return;
+    const osmd = osmdRef.current;
+    const instruments = osmd.Sheet.Instruments ?? [];
+    let changed = false;
+    instruments.forEach((inst) => {
+      const shouldShow = !highlightPart || inst.Name === highlightPart;
+      if (inst.Visible !== shouldShow) {
+        inst.Visible = shouldShow;
+        changed = true;
+      }
+    });
+    if (changed) {
+      osmd.render();
+      remeasure();
+    }
+  }, [highlightPart, status, remeasure]);
+
+  // 3) zoom 변경 시 재렌더
+  useEffect(() => {
+    if (status !== "ready" || !osmdRef.current) return;
+    const osmd = osmdRef.current;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    if ((osmd as any).zoom !== zoom) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (osmd as any).zoom = zoom;
+      osmd.render();
+      remeasure();
+    }
+  }, [zoom, status, remeasure]);
+
+  // 4) 커서 이동 + 시스템 단위 스크롤
   useEffect(() => {
     if (status !== "ready" || !osmdRef.current || cursorTime == null || !tempoBpm) return;
     const osmd = osmdRef.current;
@@ -105,7 +153,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
       };
 
       let curr = getCurrent();
-      if (targetWhole < curr) {
+      if (targetWhole < curr - 0.001) {
         cursor.reset();
         curr = getCurrent();
       }
@@ -116,38 +164,11 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
         curr = getCurrent();
       }
 
-      // 시스템 단위 스크롤: 현재 커서 Y에 해당하는 시스템을 뷰포트 상단에 배치
       scrollToCursorSystem();
     } catch {
-      // 조용히 무시
+      // 무시
     }
   }, [cursorTime, tempoBpm, status]);
-
-  // 3) 파트 하이라이트
-  useEffect(() => {
-    if (status !== "ready" || !mountRef.current || !osmdRef.current) return;
-    const osmd = osmdRef.current;
-    const container = mountRef.current;
-    const instruments = osmd.Sheet.Instruments ?? [];
-    const staves = container.querySelectorAll<SVGGElement>("g.vf-stave");
-    if (staves.length === 0) return;
-    const numInstruments = instruments.length || 1;
-    staves.forEach((s, idx) => {
-      const instIdx = idx % numInstruments;
-      const name = instruments[instIdx]?.Name || `Part${instIdx}`;
-      s.setAttribute("data-part", name);
-    });
-
-    if (!highlightPart) {
-      staves.forEach((s) => {
-        s.style.opacity = "1";
-      });
-    } else {
-      staves.forEach((s) => {
-        s.style.opacity = s.getAttribute("data-part") === highlightPart ? "1" : "0.35";
-      });
-    }
-  }, [highlightPart, status]);
 
   function scrollToCursorSystem() {
     const osmd = osmdRef.current;
@@ -155,29 +176,24 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
     const mount = mountRef.current;
     if (!osmd || !viewport || !mount) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cursor = (osmd.cursor as any);
-    const cursorEl: HTMLElement | SVGElement | undefined = cursor?.cursorElement;
+    const cursor = osmd.cursor as any;
+    const cursorEl: HTMLElement | undefined = cursor?.cursorElement;
     if (!cursorEl) return;
 
-    // 커서의 Y 좌표 (mount 컨테이너 기준)
     const mountRect = mount.getBoundingClientRect();
-    const cursorRect = (cursorEl as HTMLElement).getBoundingClientRect();
-    const cursorYInMount = cursorRect.top - mountRect.top;
+    const cursorRect = cursorEl.getBoundingClientRect();
+    // cursorEl이 아직 layout되지 않은 경우 (width/height 0) 건너뜀
+    if (cursorRect.height === 0 && cursorRect.width === 0) return;
+    const cursorYInMount = cursorRect.top - mountRect.top + viewport.scrollTop;
 
-    // 커서가 속한 시스템 찾기
     const systems = systemsRef.current;
-    let target: SystemRect | null = null;
+    if (systems.length === 0) return;
+
+    let target = systems[0];
     for (const s of systems) {
-      if (cursorYInMount >= s.y && cursorYInMount < s.y + s.height) {
-        target = s;
-        break;
-      }
+      if (cursorYInMount >= s.y - 5) target = s;
+      else break;
     }
-    if (!target && systems.length > 0) {
-      // 마지막 시스템 넘어간 경우 마지막 시스템 유지
-      target = systems[systems.length - 1];
-    }
-    if (!target) return;
 
     const desiredScroll = Math.max(0, target.y - 10);
     if (Math.abs(viewport.scrollTop - desiredScroll) > 4) {
@@ -203,7 +219,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
         ref={viewportRef}
         className="relative w-full overflow-hidden"
         style={{
-          height: status === "loading" ? 0 : viewportHeightRef.current,
+          height: status === "loading" ? 0 : viewportHeight,
           transition: "height 200ms ease",
         }}
       >
@@ -214,18 +230,18 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
 }
 
 /**
- * DOM에서 system 경계를 측정.
- * OSMD는 각 staff line을 <g class="vf-stave"> 로 렌더. 순서대로 instrument 수만큼이 한 시스템.
+ * 각 system의 Y/height 측정. 가시 instrument 수 기준으로 g.vf-stave를 그룹핑.
  */
-function measureSystems(mount: HTMLDivElement, numInstruments: number): SystemRect[] {
+function measureSystems(mount: HTMLDivElement, visibleInstrumentCount: number): SystemRect[] {
   const staves = mount.querySelectorAll<SVGGElement>("g.vf-stave");
   if (staves.length === 0) return [];
   const mountRect = mount.getBoundingClientRect();
   const systems: SystemRect[] = [];
-  const sysCount = Math.ceil(staves.length / numInstruments);
+  const perSys = Math.max(1, visibleInstrumentCount);
+  const sysCount = Math.ceil(staves.length / perSys);
   for (let i = 0; i < sysCount; i++) {
-    const firstIdx = i * numInstruments;
-    const lastIdx = Math.min((i + 1) * numInstruments - 1, staves.length - 1);
+    const firstIdx = i * perSys;
+    const lastIdx = Math.min((i + 1) * perSys - 1, staves.length - 1);
     const first = staves[firstIdx];
     const last = staves[lastIdx];
     if (!first || !last) continue;
