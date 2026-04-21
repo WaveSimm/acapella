@@ -129,9 +129,12 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       const getCurrent = (): number => {
         const ts = cursor.Iterator?.currentTimeStamp;
         if (!ts) return 0;
-        const num = typeof ts.Numerator === "number" ? ts.Numerator : ts.numerator;
-        const den = typeof ts.Denominator === "number" ? ts.Denominator : ts.denominator;
-        return num / den;
+        // OSMD Fraction = WholeValue + Numerator/Denominator. RealValue getter가 있으면 우선 사용.
+        if (typeof ts.RealValue === "number") return ts.RealValue;
+        const whole = typeof ts.WholeValue === "number" ? ts.WholeValue : 0;
+        const num = typeof ts.Numerator === "number" ? ts.Numerator : 0;
+        const den = typeof ts.Denominator === "number" ? ts.Denominator : 1;
+        return whole + num / den;
       };
       let curr = getCurrent();
       if (targetWhole < curr - 0.001) {
