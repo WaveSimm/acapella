@@ -47,6 +47,7 @@ export interface NoteItem {
   durType: string;
   dots: number;
   tied: boolean;
+  slur: boolean; // 다음 노트와 syllable 공유 (멜리스마)
   lyric?: LyricSyllable;
 }
 
@@ -229,6 +230,7 @@ function durToData(durStr: string) {
   let divisions = DUR_DIV[base] ?? XML_DIVISIONS;
   let dots = 0;
   let tied = false;
+  let slur = false;
   for (const opt of tokens.slice(1)) {
     if (opt === "Dotted") {
       midiTicks = Math.floor(midiTicks * 1.5);
@@ -243,6 +245,8 @@ function durToData(durStr: string) {
       divisions = Math.floor(divisions * 2 / 3);
     } else if (opt === "Tied") {
       tied = true;
+    } else if (opt === "Slur") {
+      slur = true;
     }
   }
   return {
@@ -251,6 +255,7 @@ function durToData(durStr: string) {
     durType: DUR_XML_TYPE[base] || "quarter",
     dots,
     tied,
+    slur,
   };
 }
 
@@ -402,6 +407,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         durType: d.durType,
         dots: d.dots,
         tied: d.tied,
+        slur: d.slur,
       });
     } else if (cmd === "Chord" && current && currentMeasure) {
       const pps = (p.Pos || "").split(",").map(parsePos).filter((x): x is ParsedPos => !!x);
@@ -423,6 +429,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         durType: d.durType,
         dots: d.dots,
         tied: d.tied,
+        slur: d.slur,
       });
     } else if (cmd === "Rest" && current && currentMeasure) {
       const d = durToData(p.Dur);
@@ -489,14 +496,20 @@ function tokenizeLyrics(raw: string): SyllableToken[] {
 function assignLyricsToNotes(staff: Staff, syllables: SyllableToken[]) {
   let si = 0;
   let prevContinuation = false;
+  let prevNoteSharesToNext = false; // 이전 노트의 slur/tied → 현재 노트는 이전과 같은 syllable (melisma)
   for (const m of staff.measures) {
     for (const n of m.notes) {
       if (n.type !== "note") continue;
+      if (prevNoteSharesToNext) {
+        // 현재 노트는 이전 syllable 유지. lyric 할당 없음.
+        prevNoteSharesToNext = n.slur || n.tied;
+        continue;
+      }
       if (si >= syllables.length) return;
       const syl = syllables[si];
       if (syl.extension) {
-        // 확장: 이전 음절을 유지 (현재 노트에 가사 없음)
         si++;
+        prevNoteSharesToNext = n.slur || n.tied;
         continue;
       }
       let syllabic: LyricSyllable["syllabic"];
@@ -506,6 +519,7 @@ function assignLyricsToNotes(staff: Staff, syllables: SyllableToken[]) {
       else syllabic = "single";
       n.lyric = { text: syl.text, syllabic };
       prevContinuation = syl.continuation;
+      prevNoteSharesToNext = n.slur || n.tied;
       si++;
     }
   }
