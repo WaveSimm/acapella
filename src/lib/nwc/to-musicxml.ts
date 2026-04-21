@@ -103,17 +103,23 @@ export function buildMusicXml(parsed: ParsedScore): string {
             if (thisStartsTie) parts.push('<tie type="start"/>');
             parts.push(`<type>${n.durType}</type>`);
             for (let d = 0; d < (n.dots || 0); d++) parts.push("<dot/>");
+            // 3연음: time-modification = 3 in the time of 2
+            if (n.tripletMark) {
+              parts.push("<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>");
+            }
             if (p.explicitAccidental !== null && p.explicitAccidental !== undefined) {
               const accMap: Record<number, string> = { 1: "sharp", [-1]: "flat", 0: "natural", 2: "double-sharp", [-2]: "flat-flat" };
               const accName = accMap[p.explicitAccidental];
               if (accName) parts.push(`<accidental>${accName}</accidental>`);
             }
-            // notations (slur, tied 시각 곡선 등)은 첫 pitch(chord 노트)에만
+            // notations (slur, tied, tuplet 등)은 첫 pitch(chord 노트)에만
             if (pi === 0) {
               const notations: string[] = [];
               if (n.slurEvent) notations.push(`<slur type="${n.slurEvent}" number="1"/>`);
               if (thisStopsTie) notations.push(`<tied type="stop"/>`);
               if (thisStartsTie) notations.push(`<tied type="start"/>`);
+              if (n.tripletMark === "first") notations.push(`<tuplet type="start" number="1" bracket="yes"/>`);
+              if (n.tripletMark === "end") notations.push(`<tuplet type="stop" number="1"/>`);
               if (notations.length > 0) parts.push(`<notations>${notations.join("")}</notations>`);
             }
             if (pi === 0 && n.lyric) {

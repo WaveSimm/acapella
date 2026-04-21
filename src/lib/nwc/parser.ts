@@ -49,6 +49,7 @@ export interface NoteItem {
   tied: boolean;
   slur: boolean; // 다음 노트와 syllable 공유 (멜리스마)
   slurEvent?: "start" | "stop"; // MusicXML <slur> 태그용
+  tripletMark?: "first" | "middle" | "end"; // 3연음 경계 표시
   lyric?: LyricSyllable;
 }
 
@@ -248,6 +249,11 @@ function durToData(durStr: string) {
   let dots = 0;
   let tied = false;
   let slur = false;
+  let tripletMark: "first" | "middle" | "end" | null = null;
+  const applyTriplet = () => {
+    midiTicks = Math.floor(midiTicks * 2 / 3);
+    divisions = Math.floor(divisions * 2 / 3);
+  };
   for (const opt of tokens.slice(1)) {
     if (opt === "Dotted") {
       midiTicks = Math.floor(midiTicks * 1.5);
@@ -257,9 +263,15 @@ function durToData(durStr: string) {
       midiTicks = Math.floor(midiTicks * 1.75);
       divisions = Math.floor(divisions * 1.75);
       dots = 2;
+    } else if (opt === "Triplet=First") {
+      applyTriplet();
+      tripletMark = "first";
+    } else if (opt === "Triplet=End") {
+      applyTriplet();
+      tripletMark = "end";
     } else if (opt === "Triplet") {
-      midiTicks = Math.floor(midiTicks * 2 / 3);
-      divisions = Math.floor(divisions * 2 / 3);
+      applyTriplet();
+      tripletMark = "middle";
     } else if (opt === "Tied") {
       tied = true;
     } else if (opt === "Slur") {
@@ -273,6 +285,7 @@ function durToData(durStr: string) {
     dots,
     tied,
     slur,
+    tripletMark,
   };
 }
 
@@ -446,6 +459,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         dots: d.dots,
         tied: d.tied || pp.tied,
         slur: d.slur,
+        tripletMark: d.tripletMark ?? undefined,
       });
     } else if (cmd === "Chord" && current && currentMeasure) {
       const pps = (p.Pos || "").split(",").map(parsePos).filter((x): x is ParsedPos => !!x);
@@ -469,6 +483,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         dots: d.dots,
         tied: d.tied || anyTied,
         slur: d.slur,
+        tripletMark: d.tripletMark ?? undefined,
       });
     } else if (cmd === "Rest" && current && currentMeasure) {
       const d = durToData(p.Dur);
