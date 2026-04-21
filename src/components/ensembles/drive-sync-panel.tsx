@@ -70,6 +70,7 @@ export function DriveSyncPanel({ ensembleId, initialDriveFolderUrl }: Props) {
       const data = await res.json();
       if (!res.ok) throw new Error(typeof data.error === "string" ? data.error : "동기화 실패");
       setResult(data);
+      if (data.created > 0) router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "동기화 실패");
     } finally {
