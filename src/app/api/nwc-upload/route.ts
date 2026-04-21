@@ -28,8 +28,8 @@ export async function POST(request: NextRequest) {
   if (typeof songId !== "string" || !songId) {
     return NextResponse.json({ error: "songId가 필요합니다." }, { status: 400 });
   }
-  if (!/\.nwc$/i.test(file.name)) {
-    return NextResponse.json({ error: "NWC 파일(.nwc)만 업로드 가능합니다." }, { status: 415 });
+  if (!/\.(nwc|nwctxt)$/i.test(file.name)) {
+    return NextResponse.json({ error: "NWC 파일(.nwc 또는 .nwctxt)만 업로드 가능합니다." }, { status: 415 });
   }
   if (file.size > MAX_SIZE) {
     return NextResponse.json({ error: `파일이 너무 큽니다. 최대 ${MAX_SIZE / 1024 / 1024}MB.` }, { status: 413 });
@@ -58,7 +58,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "NWC → MIDI/MusicXML 변환 실패: " + msg }, { status: 500 });
   }
 
-  const baseName = file.name.replace(/\.nwc$/i, "");
+  const baseName = file.name.replace(/\.(nwc|nwctxt)$/i, "");
 
   // UploadedFile + PracticeResource를 한 트랜잭션으로
   const result = await prisma.$transaction(async (tx) => {

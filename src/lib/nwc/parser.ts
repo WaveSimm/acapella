@@ -205,24 +205,29 @@ export function parseKeySig(sig: string): { ksMap: Record<string, number>; fifth
 interface ParsedPos {
   pos: number;
   alter: number | null;
+  tied: boolean;
 }
 
+/**
+ * NWC Pos 표기법:
+ *   [accidental]<number>[tie]
+ *   accidental (접두): # (sharp), b (flat), n (natural), x (double sharp), v (double flat)
+ *   tie (접미): ^ = 다음 노트와 tied (같은 pitch 연결)
+ * 예: "#-3" = F# (pos -3, sharp), "-3^" = pos -3, tied to next
+ */
 function parsePos(posStr: string): ParsedPos | null {
-  // NWC V2 binary 포맷: 접두 prefix가 임시표 (#, b, n, x, v)
-  //   #-3 = pos -3 sharp, b-3 = pos -3 flat, n-3 = pos -3 natural
-  // 접미 suffix (^, _, v, x)는 binary 포맷 내부 display flag (stem/beam 등)
-  // 로, 실제 임시표가 아니라 여기서는 무시한다.
-  const m = posStr.match(/^([#bnxv_]{0,2})(-?\d+)[\^_vxb]*$/);
+  const m = posStr.match(/^([#bnxv]{1,2})?(-?\d+)(\^)?$/);
   if (!m) return null;
-  const prefix = m[1];
+  const prefix = m[1] || "";
   const pos = parseInt(m[2], 10);
+  const tied = m[3] === "^";
   let alter: number | null = null;
   if (prefix === "#") alter = 1;
   else if (prefix === "b") alter = -1;
   else if (prefix === "n") alter = 0;
   else if (prefix === "x") alter = 2;
-  else if (prefix === "bb" || prefix === "_") alter = -2;
-  return { pos, alter };
+  else if (prefix === "bb" || prefix === "v") alter = -2;
+  return { pos, alter, tied };
 }
 
 function posToStepOctave(pos: number, center: ClefCenter, octaveShift: number) {
@@ -305,18 +310,31 @@ function parseCommand(line: string): { cmd: string; props: Record<string, string
 }
 
 /**
- * NWZ 압축 NWC 파일을 파싱해 ParsedScore로 변환.
- * @param input Buffer (NWZ) 또는 latin1 문자열 (이미 압축 해제된 텍스트)
+ * NWC 파일을 파싱해 ParsedScore로 변환.
+ * 지원 포맷:
+ *   - NWZ binary (zlib 압축, [NWZ] 헤더): .nwc 파일
+ *   - NWCtxt plain text (!NoteWorthyComposer 헤더): .nwctxt 파일
+ * @param input Buffer 또는 이미 디코딩된 문자열
  */
 export function parseNwc(input: Buffer | string): ParsedScore {
   let text: string;
   if (typeof input === "string") {
     text = input;
   } else {
-    if (input.toString("ascii", 0, 5) !== "[NWZ]") {
-      throw new Error("NWC V2 (NWZ) 형식이 아닙니다.");
+    const head = input.toString("ascii", 0, Math.min(32, input.length));
+    if (head.startsWith("[NWZ]")) {
+      // Binary NWZ: zlib 해제 후 latin1
+      text = inflateSync(input.slice(6)).toString("latin1");
+    } else if (head.startsWith("!NoteWorthyComposer")) {
+      // NWCtxt plain text: UTF-8 기본, 실패 시 latin1
+      try {
+        text = input.toString("utf-8");
+      } catch {
+        text = input.toString("latin1");
+      }
+    } else {
+      throw new Error("NWC V2 (NWZ) 또는 NWCtxt 형식이 아닙니다.");
     }
-    text = inflateSync(input.slice(6)).toString("latin1");
   }
 
   const lines = text.split(/[\r\n]+/).filter((l) => l.startsWith("|")).map(parseCommand);
@@ -428,7 +446,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         durTicks: d.durTicks,
         durType: d.durType,
         dots: d.dots,
-        tied: d.tied,
+        tied: d.tied || pp.tied,
         slur: d.slur,
       });
     } else if (cmd === "Chord" && current && currentMeasure) {
@@ -443,6 +461,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         if (alter === null && staff.keySig[so.step] !== undefined) alter = staff.keySig[so.step];
         return { step: so.step, octave: so.octave, alter: alter ?? 0, explicitAccidental: pp.alter };
       });
+      const anyTied = pps.some((pp) => pp.tied);
       currentMeasure.notes.push({
         type: "note",
         pitches,
@@ -450,7 +469,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         durTicks: d.durTicks,
         durType: d.durType,
         dots: d.dots,
-        tied: d.tied,
+        tied: d.tied || anyTied,
         slur: d.slur,
       });
     } else if (cmd === "Rest" && current && currentMeasure) {

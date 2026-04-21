@@ -57,7 +57,7 @@ export function NwcUploader({ songId }: Props) {
       <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
         <input
           type="file"
-          accept=".nwc"
+          accept=".nwc,.nwctxt"
           onChange={(e) => { setError(null); setFile(e.target.files?.[0] ?? null); }}
           className="flex-1 text-sm"
         />
