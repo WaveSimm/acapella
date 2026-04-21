@@ -197,7 +197,7 @@ function formatTime(sec: number): string {
 function AudioPlayer({ src, id, onError }: { src: string; id: string; onError: (id: string) => void }) {
   const audioRef = useRef<HTMLAudioElement>(null);
   const barRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number>(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -216,28 +216,34 @@ function AudioPlayer({ src, id, onError }: { src: string; id: string; onError: (
     abRef.current = { abMode, pointA, pointB, dragging };
   }, [abMode, pointA, pointB, dragging]);
 
-  const tick = useCallback(() => {
+  // 100ms 간격 폴링 (YouTube player와 동일) — seek 반영을 충분히 기다려 중복 jump 방지
+  useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
-    setCurrentTime(audio.currentTime);
-    const s = abRef.current;
-    if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
-      // 조건 2개: pointB 지났고 + 아직 pointA 근처로 돌아오지 않았을 때만 seek
-      // (seek 반영이 지연되어 currentTime이 B 근처로 남아 있는 동안 중복 트리거 방지)
-      if (audio.currentTime >= s.pointB && audio.currentTime > s.pointA + 0.3) {
-        audio.currentTime = s.pointA;
-        if (audio.paused) audio.play().catch(() => {});
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      if (!audioRef.current) return;
+      const a = audioRef.current;
+      setCurrentTime(a.currentTime);
+      const s = abRef.current;
+      if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
+        if (a.currentTime >= s.pointB) {
+          a.currentTime = s.pointA;
+          if (a.paused) a.play().catch(() => {});
+        }
       }
-    }
-    rafRef.current = requestAnimationFrame(tick);
+    }, 100);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
   }, []);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
     const onLoaded = () => setDuration(audio.duration || 0);
-    const onPlay = () => { setPlaying(true); rafRef.current = requestAnimationFrame(tick); };
-    const onPause = () => { setPlaying(false); cancelAnimationFrame(rafRef.current); };
+    const onPlay = () => setPlaying(true);
+    const onPause = () => setPlaying(false);
     const onEnd = () => { setPlaying(false); if (loop) { audio.currentTime = 0; audio.play(); } };
     const onErr = () => onError(id);
     audio.addEventListener("loadedmetadata", onLoaded);
@@ -251,9 +257,8 @@ function AudioPlayer({ src, id, onError }: { src: string; id: string; onError: (
       audio.removeEventListener("pause", onPause);
       audio.removeEventListener("ended", onEnd);
       audio.removeEventListener("error", onErr);
-      cancelAnimationFrame(rafRef.current);
     };
-  }, [tick, loop, id, onError]);
+  }, [loop, id, onError]);
 
   useEffect(() => {
     const audio = audioRef.current;

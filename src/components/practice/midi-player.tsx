@@ -61,7 +61,7 @@ export function MidiPlayer({ src }: Props) {
 
   const elRef = useRef<MidiEl | null>(null);
   const barRef = useRef<HTMLDivElement>(null);
-  const rafRef = useRef<number>(0);
+  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -91,21 +91,27 @@ export function MidiPlayer({ src }: Props) {
     return () => { cancelled = true; };
   }, [status]);
 
-  // rAF로 currentTime 추적 + AB 점프 (deps 없이 안정화)
-  const tick = useCallback(() => {
-    const el = elRef.current;
-    if (!el) return;
-    const t = typeof el.currentTime === "number" ? el.currentTime : 0;
-    setCurrentTime(t);
-    const s = abRef.current;
-    if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
-      if (t >= s.pointB && t > s.pointA + 0.3) {
-        el.currentTime = s.pointA;
-        if (!el.playing) el.start();
+  // 100ms 폴링 (YouTube/Audio와 동일)
+  useEffect(() => {
+    if (status !== "ready") return;
+    if (timerRef.current) clearInterval(timerRef.current);
+    timerRef.current = setInterval(() => {
+      const el = elRef.current;
+      if (!el) return;
+      const t = typeof el.currentTime === "number" ? el.currentTime : 0;
+      setCurrentTime(t);
+      const s = abRef.current;
+      if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
+        if (t >= s.pointB) {
+          el.currentTime = s.pointA;
+          if (!el.playing) el.start();
+        }
       }
-    }
-    rafRef.current = requestAnimationFrame(tick);
-  }, []);
+    }, 100);
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+  }, [status]);
 
   // 이벤트 바인딩 + duration 읽기
   useEffect(() => {
@@ -117,10 +123,9 @@ export function MidiPlayer({ src }: Props) {
       const d = typeof el.duration === "number" && !isNaN(el.duration) ? el.duration : 0;
       if (d > 0) setDuration(d);
     };
-    const onStart = () => { setPlaying(true); rafRef.current = requestAnimationFrame(tick); };
+    const onStart = () => setPlaying(true);
     const onStop = () => {
       setPlaying(false);
-      cancelAnimationFrame(rafRef.current);
       const t = typeof el.currentTime === "number" ? el.currentTime : 0;
       const d = typeof el.duration === "number" ? el.duration : 0;
       // 끝까지 재생되어 stop된 경우 loop 처리
@@ -147,10 +152,9 @@ export function MidiPlayer({ src }: Props) {
       el.removeEventListener("start", onStart);
       el.removeEventListener("stop", onStop);
       el.removeEventListener("load", onLoad);
-      cancelAnimationFrame(rafRef.current);
       clearInterval(iv);
     };
-  }, [status, tick, loop]);
+  }, [status, loop]);
 
   // src 바뀌면 duration 초기화
   useEffect(() => {
