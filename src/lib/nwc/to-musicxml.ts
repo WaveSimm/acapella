@@ -34,9 +34,20 @@ export function buildMusicXml(parsed: ParsedScore): string {
     lines.push(`  <part id="${staff.partId}">`);
     const cd = clefXml(staff.clef);
 
+    // 마지막 빈 마디가 NWC Bar 명령어로 만들어진 trailing placeholder인지 판정:
+    // 이 스태프에만 있고 다른 스태프 중 어떤 곳은 해당 measure index에 notes가 있으면
+    // 실제 음악 마디로 간주하고 쉼표로 채워 출력. 전 스태프에서 모두 비어있으면 skip.
+    const maxCount = Math.max(...parsed.staves.map((s) => s.measures.length));
+
     for (let mi = 0; mi < staff.measures.length; mi++) {
       const m = staff.measures[mi];
-      if (m.notes.length === 0 && mi === staff.measures.length - 1) continue;
+      // 마지막 (공유되지 않는) trailing 빈 마디만 skip
+      if (m.notes.length === 0 && mi === staff.measures.length - 1 && mi === maxCount - 1) {
+        const anyOtherHasNotes = parsed.staves.some(
+          (other) => other !== staff && other.measures[mi]?.notes.length > 0,
+        );
+        if (!anyOtherHasNotes) continue;
+      }
 
       const measureNumber = mi + 1;
       lines.push(`    <measure number="${measureNumber}">`);
@@ -58,6 +69,11 @@ export function buildMusicXml(parsed: ParsedScore): string {
         if (keyChange) {
           lines.push(`      <attributes><key><fifths>${keyChange.fifths}</fifths></key></attributes>`);
         }
+      }
+      // 빈 마디는 전체 쉼표로 채워 정렬 유지
+      if (m.notes.length === 0) {
+        const fullMeasureDur = XML_DIVISIONS * 4 * (tsNum ?? 4) / (tsDen ?? 4);
+        lines.push(`      <note><rest measure="yes"/><duration>${Math.round(fullMeasureDur)}</duration></note>`);
       }
       for (const n of m.notes) {
         if (n.type === "rest") {
