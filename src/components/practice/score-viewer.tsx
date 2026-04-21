@@ -56,21 +56,34 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         if (rules) {
           rules.RenderSingleHorizontalStaffline = true;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
-          // 음표 간격: 8분음표 이하(16th/32nd)는 8분음표와 동일한 최소 간격.
-          // 더 긴 음표일수록 넉넉하게. [32nd..whole] 이 아닌 duration index 기반이지만
-          // OSMD 내부 해석을 그대로 사용 — 앞 3개를 동일값으로 만들어 "8분 최소" 구현.
-          rules.NoteDistances = [1.0, 1.0, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0];
-          rules.NoteDistancesScalingFactor = 0.6;
-          // 가사가 음표 간격을 늘리지 않도록 — 겹쳐도 OK
-          rules.LyricsXPadding = 0.0;
-          rules.BetweenSyllabSpace = 0.0;
+
+          // ── 음표 간격 ──────────────────────────────────────────────────────
+          // NoteDistances 인덱스: [64th, 32nd, 16th, 8th, quarter, dotted-quarter, half, dotted-half, whole]
+          // 앞 3개(64th·32nd·16th)를 8분음표(index=3)와 동일하게 고정 → 짧은 음표도 8분음표 최소 간격 유지.
+          // 더 긴 음표는 길이에 비례해 넉넉하게.
+          rules.NoteDistances = [1.5, 1.5, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.5];
+          // NoteDistancesScalingFactors: NoteDistances와 같은 길이의 배열. 균일하게 0.6 적용.
+          rules.NoteDistancesScalingFactors = [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6];
+          // VexFlow 내부 spacing 파라미터 — 기본값보다 약간 줄여서 밀도 증가
+          rules.VoiceSpacingMultiplierVexflow = 0.45;
+          rules.VoiceSpacingAddendVexflow = 3.0;
+          // SoftmaxFactor: 낮을수록 짧은 음표와 긴 음표 간격 차이를 줄임 (기본 15)
+          rules.SoftmaxFactorVexFlow = 5.0;
+
+          // ── 가사 간격 (가사가 음표 간격을 늘리지 않도록) ────────────────────
+          // MaximumLyricsElongationFactor: 가사 때문에 마디 폭이 늘어나는 최대 배율. 1.0 = 늘리지 않음.
+          rules.MaximumLyricsElongationFactor = 1.0;
+          // LyricsUseXPaddingForLongLyrics: false → 긴 가사를 위한 음표 뒤 padding 비활성화
+          rules.LyricsUseXPaddingForLongLyrics = false;
+          // 가사 겹침 허용 범위를 크게 — 다음 마디까지 넘어가도 OK
+          rules.LyricOverlapAllowedIntoNextMeasure = 999;
+          // 음절 간 최소/최대 거리를 0으로 — 자연 음표 간격만 사용
+          rules.BetweenSyllableMinimumDistance = 0.0;
+          rules.BetweenSyllableMaximumDistance = 0.0;
+          rules.HorizontalBetweenLyricsDistance = 0.0;
           rules.MinimumDistanceBetweenDashes = 0.0;
-          if ("LyricsExtraRequiredSpaceInMeasureBetweenLyricsAndBarline" in rules) {
-            rules.LyricsExtraRequiredSpaceInMeasureBetweenLyricsAndBarline = 0;
-          }
-          if ("LyricsMinimumSpaceBetweenLyricsInMeasure" in rules) {
-            rules.LyricsMinimumSpaceBetweenLyricsInMeasure = 0;
-          }
+          // 짧은 가사를 위한 x-shift 제거
+          rules.LyricsExtraXShiftForShortLyrics = 0.0;
         }
         // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
