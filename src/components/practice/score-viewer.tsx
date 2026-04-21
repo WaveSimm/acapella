@@ -57,11 +57,9 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           rules.RenderSingleHorizontalStaffline = true;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
           if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
-          // [단계2] 음표 길이별 간격 비례. 인덱스 [64th, 32nd, 16th, 8th, quarter, dotted-quarter, half, dotted-half, whole].
-          // 16분음표 이하는 8분음표와 동일한 최소 간격, 이후는 길이에 따라 점진적으로 증가.
-          if ("NoteDistances" in rules && Array.isArray(rules.NoteDistances)) {
-            rules.NoteDistances = [1.0, 1.0, 1.0, 1.0, 1.4, 1.8, 2.2, 2.8, 3.6];
-          }
+          // [단계3] VexFlow 레벨 spacing — NoteDistances 는 single-horizontal 모드에서 무시될 수 있어
+          // VexFlow 직접 파라미터로 접근. Multiplier가 낮을수록 음표 간격이 좁아짐 (기본 1.0 추정).
+          if ("VoiceSpacingMultiplierVexflow" in rules) rules.VoiceSpacingMultiplierVexflow = 0.6;
         }
         // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
