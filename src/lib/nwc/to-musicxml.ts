@@ -34,20 +34,21 @@ export function buildMusicXml(parsed: ParsedScore): string {
     lines.push(`  <part id="${staff.partId}">`);
     const cd = clefXml(staff.clef);
 
-    // 마지막 빈 마디가 NWC Bar 명령어로 만들어진 trailing placeholder인지 판정:
-    // 이 스태프에만 있고 다른 스태프 중 어떤 곳은 해당 measure index에 notes가 있으면
-    // 실제 음악 마디로 간주하고 쉼표로 채워 출력. 전 스태프에서 모두 비어있으면 skip.
+    // 모든 스태프 중 가장 긴 마디 수에 맞춤. 짧은 스태프는 쉼표로 패딩.
     const maxCount = Math.max(...parsed.staves.map((s) => s.measures.length));
 
-    for (let mi = 0; mi < staff.measures.length; mi++) {
-      const m = staff.measures[mi];
-      // 마지막 (공유되지 않는) trailing 빈 마디만 skip
-      if (m.notes.length === 0 && mi === staff.measures.length - 1 && mi === maxCount - 1) {
-        const anyOtherHasNotes = parsed.staves.some(
-          (other) => other !== staff && other.measures[mi]?.notes.length > 0,
-        );
-        if (!anyOtherHasNotes) continue;
-      }
+    // 모든 스태프가 같은 index에서 전부 비어있으면 스킵 (전 스태프가 끝났는데
+    // 남은 trailing 빈 마디들은 NWC Bar artifact)
+    const allEmptyAt = (idx: number) =>
+      parsed.staves.every((s) => !s.measures[idx] || s.measures[idx].notes.length === 0);
+    // 실제 출력할 마디 수: trailing all-empty 제거 후
+    let effectiveMaxCount = maxCount;
+    while (effectiveMaxCount > 0 && allEmptyAt(effectiveMaxCount - 1)) {
+      effectiveMaxCount--;
+    }
+
+    for (let mi = 0; mi < effectiveMaxCount; mi++) {
+      const m = staff.measures[mi] ?? { notes: [] }; // 짧은 스태프는 빈 마디로 대체
 
       const measureNumber = mi + 1;
       lines.push(`    <measure number="${measureNumber}">`);
