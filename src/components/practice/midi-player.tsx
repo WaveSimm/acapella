@@ -54,13 +54,17 @@ export function MidiPlayer({ src }: Props) {
   );
   const [errMsg, setErrMsg] = useState<string>("");
 
-  const playerRef = useRef<HTMLElement & {
-    currentTime: number;
-    duration: number;
-    start?: () => void;
-    stop?: () => void;
-    addVisualizer?: (v: HTMLElement) => void;
-  } | null>(null);
+  const playerRef = useRef<HTMLElement | null>(null);
+
+  function getCurrentTime(): number {
+    const el = playerRef.current as unknown as { currentTime?: number } | null;
+    const t = el?.currentTime;
+    return typeof t === "number" && !isNaN(t) ? t : 0;
+  }
+  function seekTo(t: number) {
+    const el = playerRef.current as unknown as { currentTime?: number } | null;
+    if (el) el.currentTime = t;
+  }
 
   const [loop, setLoop] = useState(false);
   const [speedIdx, setSpeedIdx] = useState(2); // 1.0x
@@ -102,36 +106,29 @@ export function MidiPlayer({ src }: Props) {
   useEffect(() => {
     if (abMode !== "active" || pointA === null || pointB === null) return;
     const iv = setInterval(() => {
-      const el = playerRef.current;
-      if (!el) return;
-      if (el.currentTime >= pointB) {
-        el.currentTime = pointA;
-      }
+      if (getCurrentTime() >= pointB) seekTo(pointA);
     }, 80);
     return () => clearInterval(iv);
   }, [abMode, pointA, pointB]);
 
   function handleABClick() {
-    const el = playerRef.current;
-    if (!el) return;
+    const t = getCurrentTime();
     if (abMode === "off") {
-      // 시작점 설정 모드로
-      setAbMode("setA");
-      setPointA(null);
+      // 1차 클릭: 현재 위치를 A로 기록, B 대기
+      setPointA(t);
       setPointB(null);
-      return;
-    }
-    if (abMode === "setA") {
-      setPointA(el.currentTime);
       setAbMode("setB");
       return;
     }
     if (abMode === "setB") {
-      const t = el.currentTime;
+      // 2차 클릭: 현재 위치를 B로 기록. A보다 뒤여야 함
       if (pointA !== null && t > pointA + 0.2) {
         setPointB(t);
         setAbMode("active");
-        el.currentTime = pointA;
+        seekTo(pointA);
+      } else {
+        // 너무 가깝거나 A 이전이면 새 A로 갱신
+        setPointA(t);
       }
       return;
     }
@@ -145,7 +142,7 @@ export function MidiPlayer({ src }: Props) {
     switch (abMode) {
       case "off": return "bg-gray-100 text-gray-500 hover:bg-gray-200";
       case "setA": return "bg-amber-100 text-amber-700 animate-pulse";
-      case "setB": return "bg-amber-200 text-amber-700 animate-pulse";
+      case "setB": return "bg-amber-100 text-amber-700 animate-pulse";
       case "active": return "bg-emerald-100 text-emerald-700";
     }
   };
@@ -153,7 +150,7 @@ export function MidiPlayer({ src }: Props) {
     switch (abMode) {
       case "off": return "구간반복";
       case "setA": return "시작점 설정";
-      case "setB": return "끝점 설정";
+      case "setB": return pointA !== null ? `A ${formatTime(pointA)} · B 설정` : "끝점 설정";
       case "active": return `${formatTime(pointA!)}~${formatTime(pointB!)}`;
     }
   };
@@ -219,14 +216,9 @@ export function MidiPlayer({ src }: Props) {
               {SPEEDS[speedIdx]}x
             </button>
           </div>
-          {abMode === "setA" && (
-            <p className="mt-2 text-center text-[10px] text-amber-600">
-              재생 중 시작점에서 다시 누르세요
-            </p>
-          )}
           {abMode === "setB" && (
             <p className="mt-2 text-center text-[10px] text-amber-600">
-              재생 중 끝점에서 다시 누르세요
+              재생 중 끝점에서 버튼을 다시 누르세요
             </p>
           )}
         </>
