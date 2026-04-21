@@ -202,16 +202,20 @@ interface ParsedPos {
 }
 
 function parsePos(posStr: string): ParsedPos | null {
-  const m = posStr.match(/^(-?\d+)([\^_vxb]{1,2})?$/);
+  // NWC V2 binary 포맷: 접두 prefix가 임시표 (#, b, n, x, v)
+  //   #-3 = pos -3 sharp, b-3 = pos -3 flat, n-3 = pos -3 natural
+  // 접미 suffix (^, _, v, x)는 binary 포맷 내부 display flag (stem/beam 등)
+  // 로, 실제 임시표가 아니라 여기서는 무시한다.
+  const m = posStr.match(/^([#bnxv_]{0,2})(-?\d+)[\^_vxb]*$/);
   if (!m) return null;
-  const pos = parseInt(m[1], 10);
-  const acc = m[2] || "";
+  const prefix = m[1];
+  const pos = parseInt(m[2], 10);
   let alter: number | null = null;
-  if (acc === "^") alter = 1;
-  else if (acc === "_") alter = -1;
-  else if (acc === "v") alter = 0;
-  else if (acc === "x") alter = 2;
-  else if (acc === "bb") alter = -2;
+  if (prefix === "#") alter = 1;
+  else if (prefix === "b") alter = -1;
+  else if (prefix === "n") alter = 0;
+  else if (prefix === "x") alter = 2;
+  else if (prefix === "bb" || prefix === "_") alter = -2;
   return { pos, alter };
 }
 
