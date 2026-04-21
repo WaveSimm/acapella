@@ -1,0 +1,901 @@
+{
+  "timestamp": "2026-04-21T23:50:06.204Z",
+  "version": "pre-mobile-lag-fix",
+  "conductors": [
+    {
+      "id": "cmo70gutq0000wyyk2f2oet2i",
+      "name": "심윤송",
+      "email": "yunsim@gmail.com",
+      "image": "https://lh3.googleusercontent.com/a/ACg8ocJSOmnpXiPzaMzdn73gj_LMlCh0ltsI0vnTA_G_E161ITW8j03auA=s96-c",
+      "authProvider": "google",
+      "region": "서울",
+      "bio": "무반주합창단",
+      "regionPublic": false,
+      "bioPublic": false,
+      "role": "ADMIN",
+      "isApproved": true,
+      "createdAt": "2026-04-20T09:47:15.855Z",
+      "updatedAt": "2026-04-21T13:24:14.667Z"
+    }
+  ],
+  "songs": [
+    {
+      "id": "cmo70hilp000268q0njat20bb",
+      "titleKo": "Why we sing",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-20T09:47:46.669Z",
+      "updatedAt": "2026-04-20T09:47:46.669Z"
+    },
+    {
+      "id": "cmo70hit7000768q0tvd92haj",
+      "titleKo": "Pure Imagination",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-20T09:47:46.939Z",
+      "updatedAt": "2026-04-20T09:47:46.939Z"
+    },
+    {
+      "id": "cmo70hj0f000c68q06qkicxnb",
+      "titleKo": "Don't you worry 'bout a thing",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-20T09:47:47.199Z",
+      "updatedAt": "2026-04-20T09:47:47.199Z"
+    },
+    {
+      "id": "cmo70hj7y000h68q0vnhoukd6",
+      "titleKo": "This is me",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-20T09:47:47.471Z",
+      "updatedAt": "2026-04-20T09:47:47.471Z"
+    },
+    {
+      "id": "cmo70hjck000k68q0gwxym0w0",
+      "titleKo": "Loop Song",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-20T09:47:47.636Z",
+      "updatedAt": "2026-04-20T09:47:47.636Z"
+    },
+    {
+      "id": "cmo84uq1k000ulkqxlvdztzz8",
+      "titleKo": "TalkAudio Anthem to Hymn",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-21T04:37:47.480Z",
+      "updatedAt": "2026-04-21T04:37:47.480Z"
+    },
+    {
+      "id": "cmo84uqtz000zlkqxvz5msxhu",
+      "titleKo": "TalkAudio Blurred",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-21T04:37:48.504Z",
+      "updatedAt": "2026-04-21T04:37:48.504Z"
+    },
+    {
+      "id": "cmo84urhy0014lkqx6ldqqse3",
+      "titleKo": "TalkAudio Locomotion",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-21T04:37:49.366Z",
+      "updatedAt": "2026-04-21T04:37:49.366Z"
+    },
+    {
+      "id": "cmo84us4s0019lkqxachtsxc8",
+      "titleKo": "TalkAudio Take it off",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-21T04:37:50.188Z",
+      "updatedAt": "2026-04-21T04:37:50.188Z"
+    },
+    {
+      "id": "cmo84usva001elkqxcwiorvmd",
+      "titleKo": "TalkAudio Straight Ahead",
+      "titleEn": null,
+      "composer": null,
+      "arranger": null,
+      "pageNumber": null,
+      "createdAt": "2026-04-21T04:37:51.142Z",
+      "updatedAt": "2026-04-21T04:37:51.142Z"
+    }
+  ],
+  "practiceResources": [
+    {
+      "id": "cmo70hio7000468q01hn7w8k1",
+      "songId": "cmo70hilp000268q0njat20bb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "VIDEO",
+      "url": "https://www.youtube.com/watch?v=j8oH7GKFsB0",
+      "sourceSite": "user",
+      "label": null,
+      "fileId": null,
+      "createdAt": "2026-04-20T09:47:46.759Z"
+    },
+    {
+      "id": "cmo70hivl000968q0mq93wju0",
+      "songId": "cmo70hit7000768q0tvd92haj",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "VIDEO",
+      "url": "https://www.youtube.com/watch?v=Kih9SO0TVWY",
+      "sourceSite": "user",
+      "label": null,
+      "fileId": null,
+      "createdAt": "2026-04-20T09:47:47.025Z"
+    },
+    {
+      "id": "cmo70hj3f000e68q0e12tb76o",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "AUDIO",
+      "url": "https://drive.google.com/uc?export=download&id=1zgPj44FBkNenrpRhUhFiaNjDinfEcJmB",
+      "sourceSite": "Google Drive",
+      "label": "합창 음원",
+      "fileId": null,
+      "createdAt": "2026-04-20T09:47:47.308Z"
+    },
+    {
+      "id": "cmo71mcoo000196khdun2exc4",
+      "songId": "cmo70hj7y000h68q0vnhoukd6",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "AUDIO",
+      "url": "https://file.notion.so/f/f/a605c2e0-6a60-4118-b257-b651b60e8efe/257ecc32-211b-46ea-8475-26c23170d3f5/This_is_me_Kirby_Shaw.mp3?table=block&id=33d84bf8-266d-8098-afdd-e4e4f8ddaae6&spaceId=a605c2e0-6a60-4118-b257-b651b60e8efe&expirationTimestamp=1776708000000&signature=tZl5sCHN1HVJiHPGx4fY9npjzZVXANax3OLKpICuT5k",
+      "sourceSite": "user",
+      "label": null,
+      "fileId": null,
+      "createdAt": "2026-04-20T10:19:31.897Z"
+    },
+    {
+      "id": "cmo71mwzx000396kh8d30e44f",
+      "songId": "cmo70hj7y000h68q0vnhoukd6",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "SCORE_PREVIEW",
+      "url": "https://file.notion.so/f/f/a605c2e0-6a60-4118-b257-b651b60e8efe/75ac4e81-d580-4b40-8a99-6781028eb7ae/This_is_Me.pdf?table=block&id=33d84bf8-266d-80a5-9895-f24278f48387&spaceId=a605c2e0-6a60-4118-b257-b651b60e8efe&expirationTimestamp=1776708000000&signature=7OB7oH_xi-PAqRRq1eRiO6mZMkyaeB7NmtJn4tj_gjo&downloadName=This+is+Me.pdf",
+      "sourceSite": "user",
+      "label": null,
+      "fileId": null,
+      "createdAt": "2026-04-20T10:19:58.221Z"
+    },
+    {
+      "id": "cmo71zr1h0001t8xp9eyeg27q",
+      "songId": "cmo70hjck000k68q0gwxym0w0",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "straight ahead",
+      "resourceType": "AUDIO",
+      "url": "https://file.notion.so/f/f/a605c2e0-6a60-4118-b257-b651b60e8efe/7d6642bf-1f4a-4b19-afee-c9eb89527114/TalkAudio_Straight_Ahead.mp3?table=block&id=33284bf8-266d-8085-a4ef-eb5d379f59f6&spaceId=a605c2e0-6a60-4118-b257-b651b60e8efe&expirationTimestamp=1776708000000&signature=PStohkxbzRb-zVEMHJ-wqaSkEVjNFYo5rlELc7NaWvY&downloadName=TalkAudio_Straight+Ahead.mp3",
+      "sourceSite": "user",
+      "label": "straight ahead",
+      "fileId": null,
+      "createdAt": "2026-04-20T10:29:57.030Z"
+    },
+    {
+      "id": "cmo72080z0003t8xp7ldkbpt8",
+      "songId": "cmo70hjck000k68q0gwxym0w0",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "Take it off",
+      "resourceType": "AUDIO",
+      "url": "https://file.notion.so/f/f/a605c2e0-6a60-4118-b257-b651b60e8efe/6210c291-bbdf-448e-b806-078de5ddb79e/TalkAudio_Take_it_off.mp3?table=block&id=33284bf8-266d-809c-ad86-c83e9d03e552&spaceId=a605c2e0-6a60-4118-b257-b651b60e8efe&expirationTimestamp=1776708000000&signature=2vHa0cb7ly5YAqrZGHUfqDRdPCo2aQXTotf9Eh5BT6E&downloadName=TalkAudio_Take+it+off.mp3",
+      "sourceSite": "user",
+      "label": "Take it off",
+      "fileId": null,
+      "createdAt": "2026-04-20T10:30:19.043Z"
+    },
+    {
+      "id": "cmo720umy0005t8xpo9u6099o",
+      "songId": "cmo70hjck000k68q0gwxym0w0",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "Locomotion",
+      "resourceType": "AUDIO",
+      "url": "https://file.notion.so/f/f/a605c2e0-6a60-4118-b257-b651b60e8efe/5f1cdcd2-488b-43a0-aea0-a50795e35c05/TalkAudio_Locomotion.mp3?table=block&id=33284bf8-266d-8007-920e-ce95a541ef63&spaceId=a605c2e0-6a60-4118-b257-b651b60e8efe&expirationTimestamp=1776708000000&signature=UtJav1-w5bs0HkuuWQIE0HFzdf1H71m8XjUrfG5u9_E&downloadName=TalkAudio_Locomotion.mp3",
+      "sourceSite": "user",
+      "label": "Locomotion",
+      "fileId": null,
+      "createdAt": "2026-04-20T10:30:48.347Z"
+    },
+    {
+      "id": "cmo7219ka0007t8xpxwc21oov",
+      "songId": "cmo70hjck000k68q0gwxym0w0",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "Blurred",
+      "resourceType": "AUDIO",
+      "url": "https://file.notion.so/f/f/a605c2e0-6a60-4118-b257-b651b60e8efe/8c099281-2cd8-4189-89b4-af44cdd1460e/TalkAudio_Blurred.mp3?table=block&id=33284bf8-266d-807e-8e94-e64b8935d39b&spaceId=a605c2e0-6a60-4118-b257-b651b60e8efe&expirationTimestamp=1776708000000&signature=DoC9DMN8mNxIQDjH7uuvZz5mDOok46LBv3VZZH7jxnE&downloadName=TalkAudio_Blurred.mp3",
+      "sourceSite": "user",
+      "label": "Blurred",
+      "fileId": null,
+      "createdAt": "2026-04-20T10:31:07.690Z"
+    },
+    {
+      "id": "cmo722f9k0009t8xpw60u53h8",
+      "songId": "cmo70hjck000k68q0gwxym0w0",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "Antherm to hymm",
+      "resourceType": "AUDIO",
+      "url": "https://file.notion.so/f/f/a605c2e0-6a60-4118-b257-b651b60e8efe/cdd6a454-9f2d-4247-b189-65270f7a1c5e/TalkAudio_Anthem_to_Hymn.mp3?table=block&id=33284bf8-266d-803e-8819-d896498b6050&spaceId=a605c2e0-6a60-4118-b257-b651b60e8efe&expirationTimestamp=1776708000000&signature=7ycpPl2o0xhZY0JrzoMMclO-QDS0Mshg5kitE9LMm4U&downloadName=TalkAudio_Anthem+to+Hymn.mp3",
+      "sourceSite": "user",
+      "label": "Antherm to hymm",
+      "fileId": null,
+      "createdAt": "2026-04-20T10:32:01.736Z"
+    },
+    {
+      "id": "cmo7234z6000bt8xp8bl78hye",
+      "songId": "cmo70hjck000k68q0gwxym0w0",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "straight ahead",
+      "resourceType": "SCORE_PREVIEW",
+      "url": "https://file.notion.so/f/f/a605c2e0-6a60-4118-b257-b651b60e8efe/26aed31d-226f-4157-bad3-dcbd1720e39c/TalkFile_Straight_Ahead-RB.pdf?table=block&id=33284bf8-266d-8085-a4ef-eb5d379f59f6&spaceId=a605c2e0-6a60-4118-b257-b651b60e8efe&expirationTimestamp=1776708000000&signature=GMxkVKPNm_5JQc7Wu7xkTAtu7OYLnWVAnqjFKkMZh4o&downloadName=TalkFile_Straight+Ahead-R%26B.pdf",
+      "sourceSite": "user",
+      "label": "straight ahead",
+      "fileId": null,
+      "createdAt": "2026-04-20T10:32:35.058Z"
+    },
+    {
+      "id": "cmo84uewe0001lkqxjnwnwi7c",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "베이스",
+      "resourceType": "MIDI",
+      "url": "https://drive.google.com/uc?export=download&id=11G5jtz1ewhSw3GMswfHFN8Ntky6_kJRR",
+      "sourceSite": "Google Drive",
+      "label": "bass_Dont_you_worry_bout_a_thing.mid",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:33.039Z"
+    },
+    {
+      "id": "cmo84uex70003lkqx2fn9fhfd",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "바리톤",
+      "resourceType": "MIDI",
+      "url": "https://drive.google.com/uc?export=download&id=1bNOpaXF_yNUzl368KroNVSkzpXmnjDP6",
+      "sourceSite": "Google Drive",
+      "label": "bari_Dont_you_worry_bout_a_thing.mid",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:33.067Z"
+    },
+    {
+      "id": "cmo84uexp0005lkqxqa9u1um4",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "테너",
+      "resourceType": "MIDI",
+      "url": "https://drive.google.com/uc?export=download&id=1GtGANbmtv3dXF62jlR-Uc2YKo2op5KUy",
+      "sourceSite": "Google Drive",
+      "label": "ten_Dont_you_worry_bout_a_thing.mid",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:33.086Z"
+    },
+    {
+      "id": "cmo84ueya0007lkqxppx7eyst",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "알토",
+      "resourceType": "MIDI",
+      "url": "https://drive.google.com/uc?export=download&id=1g5FuQQzLNeo7SQkufutTB0uKnJIB4DEi",
+      "sourceSite": "Google Drive",
+      "label": "alto_Dont_you_worry_bout_a_thing.mid",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:33.106Z"
+    },
+    {
+      "id": "cmo84ueys0009lkqx6wwcq71m",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "소프라노",
+      "resourceType": "MIDI",
+      "url": "https://drive.google.com/uc?export=download&id=1WEBEj4qGEyUKwuHzQvQfJtyrVWzD56Jp",
+      "sourceSite": "Google Drive",
+      "label": "sop_Dont_you_worry_bout_a_thing.mid",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:33.124Z"
+    },
+    {
+      "id": "cmo84uezb000blkqxyjewpcrd",
+      "songId": "cmo70hj7y000h68q0vnhoukd6",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "베이스",
+      "resourceType": "MIDI",
+      "url": "https://drive.google.com/uc?export=download&id=1ckuXu9hAfnG7YhH4jO8h4WlHtk1K9RUU",
+      "sourceSite": "Google Drive",
+      "label": "Bass_This_is_Me.mid",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:33.143Z"
+    },
+    {
+      "id": "cmo84uezt000dlkqx5oveepcn",
+      "songId": "cmo70hj7y000h68q0vnhoukd6",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "테너",
+      "resourceType": "MIDI",
+      "url": "https://drive.google.com/uc?export=download&id=19WUWx-1_nd9feDojHSkbrdXBNJCXCh1v",
+      "sourceSite": "Google Drive",
+      "label": "ten_This_is_Me.mid",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:33.162Z"
+    },
+    {
+      "id": "cmo84uf0c000flkqxv295rdv1",
+      "songId": "cmo70hj7y000h68q0vnhoukd6",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "알토",
+      "resourceType": "MIDI",
+      "url": "https://drive.google.com/uc?export=download&id=1mwmYn3PdNMcCQ3F5SAWyXGqkcNPfW4sJ",
+      "sourceSite": "Google Drive",
+      "label": "alto_This_is_Me.mid",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:33.180Z"
+    },
+    {
+      "id": "cmo8takec0004clkju9mxd302",
+      "songId": "cmo70hilp000268q0njat20bb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "MIDI",
+      "url": "/api/files/cmo8take20002clkjx2gl7ow3",
+      "sourceSite": "NWC 변환",
+      "label": "Why we sing (NWC→MIDI 전체)",
+      "fileId": "cmo8take20002clkjx2gl7ow3",
+      "createdAt": "2026-04-21T16:01:57.444Z"
+    },
+    {
+      "id": "cmo8takfv0007clkj482qfrtv",
+      "songId": "cmo70hilp000268q0njat20bb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "SCORE_PREVIEW",
+      "url": "/api/files/cmo8takex0005clkjce4lgvec",
+      "sourceSite": "NWC 변환",
+      "label": "Why we sing (NWC→악보)",
+      "fileId": "cmo8takex0005clkjce4lgvec",
+      "createdAt": "2026-04-21T16:01:57.500Z"
+    },
+    {
+      "id": "cmo84uf41000tlkqx2eo06fly",
+      "songId": "cmo70hj7y000h68q0vnhoukd6",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "소프라노",
+      "resourceType": "MIDI",
+      "url": "https://drive.google.com/uc?export=download&id=1vgKE-vhJA7jBQXAgevlqqE41UdaV43Jl",
+      "sourceSite": "Google Drive",
+      "label": "sop_This_is_Me.mid",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:33.314Z"
+    },
+    {
+      "id": "cmo84uq47000ylkqx3d2xzao2",
+      "songId": "cmo84uq1k000ulkqxlvdztzz8",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "AUDIO",
+      "url": "https://drive.google.com/uc?export=download&id=1b3XUAHXdLoVhaWU99ZZ_DPh1jU1MsaU3",
+      "sourceSite": "Google Drive",
+      "label": "TalkAudio_Anthem_to_Hymn.mp3",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:47.575Z"
+    },
+    {
+      "id": "cmo84uqwf0013lkqxbuy0h1dt",
+      "songId": "cmo84uqtz000zlkqxvz5msxhu",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "AUDIO",
+      "url": "https://drive.google.com/uc?export=download&id=1a2XE7XI1xfJ4IKxoodgKFV-t0tNnLo1U",
+      "sourceSite": "Google Drive",
+      "label": "TalkAudio_Blurred.mp3",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:48.592Z"
+    },
+    {
+      "id": "cmo84urkf0018lkqxsbxiaj3o",
+      "songId": "cmo84urhy0014lkqx6ldqqse3",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "AUDIO",
+      "url": "https://drive.google.com/uc?export=download&id=14q_6VMWt1uty4tQQuJhy3WkUc-lk-s6u",
+      "sourceSite": "Google Drive",
+      "label": "TalkAudio_Locomotion.mp3",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:49.455Z"
+    },
+    {
+      "id": "cmo84us7e001dlkqxtcz8o1r6",
+      "songId": "cmo84us4s0019lkqxachtsxc8",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "AUDIO",
+      "url": "https://drive.google.com/uc?export=download&id=1ecIveCDOy0hK2h4EA3RgFXBt8TJxUG8L",
+      "sourceSite": "Google Drive",
+      "label": "TalkAudio_Take_it_off.mp3",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:50.282Z"
+    },
+    {
+      "id": "cmo84usxs001ilkqxlmpcfitk",
+      "songId": "cmo84usva001elkqxcwiorvmd",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "AUDIO",
+      "url": "https://drive.google.com/uc?export=download&id=1k7tuQCutPQj31WSHmhaIPBuz2K17dmnt",
+      "sourceSite": "Google Drive",
+      "label": "TalkAudio_Straight_Ahead.mp3",
+      "fileId": null,
+      "createdAt": "2026-04-21T04:37:51.233Z"
+    },
+    {
+      "id": "cmo8d040500026uqjazafiawz",
+      "songId": "cmo70hj7y000h68q0vnhoukd6",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체2",
+      "resourceType": "MIDI",
+      "url": "/api/files/cmo8d03o000006uqjyjggwoe9",
+      "sourceSite": "업로드",
+      "label": "This_is_Me.out.mid",
+      "fileId": "cmo8d03o000006uqjyjggwoe9",
+      "createdAt": "2026-04-21T08:25:55.782Z"
+    },
+    {
+      "id": "cmo8s6ec70004upqgao9xbxs9",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "MIDI",
+      "url": "/api/files/cmo8s6ebw0002upqgj6kfhr3f",
+      "sourceSite": "NWC 변환",
+      "label": "Don't you worry 'bout a thing (NWC→MIDI 전체)",
+      "fileId": "cmo8s6ebw0002upqgj6kfhr3f",
+      "createdAt": "2026-04-21T15:30:43.351Z"
+    },
+    {
+      "id": "cmo8s6ef50007upqgthzp7s01",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "part": "전체",
+      "resourceType": "SCORE_PREVIEW",
+      "url": "/api/files/cmo8s6ed70005upqgdorsibjt",
+      "sourceSite": "NWC 변환",
+      "label": "Don't you worry 'bout a thing (NWC→악보)",
+      "fileId": "cmo8s6ed70005upqgdorsibjt",
+      "createdAt": "2026-04-21T15:30:43.457Z"
+    }
+  ],
+  "conductorSpecs": [],
+  "ensembles": [
+    {
+      "id": "cmo70hij6000168q0s8wwpg9e",
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "name": "무반주합창단",
+      "shareCode": "5SNSHM",
+      "description": null,
+      "driveFolderUrl": "https://drive.google.com/drive/u/0/folders/1L_zwrfHISESPdxGyKwMG0eGpTjG1gPUK",
+      "driveFolderId": "1L_zwrfHISESPdxGyKwMG0eGpTjG1gPUK",
+      "createdAt": "2026-04-20T09:47:46.577Z",
+      "updatedAt": "2026-04-21T04:35:10.720Z"
+    }
+  ],
+  "ensembleSongs": [
+    {
+      "id": "cmo70hipj000668q013ntt3b0",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo70hilp000268q0njat20bb",
+      "orderIdx": 0,
+      "note": null,
+      "addedAt": "2026-04-20T09:47:46.807Z"
+    },
+    {
+      "id": "cmo70hiws000b68q04o4zn0k5",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo70hit7000768q0tvd92haj",
+      "orderIdx": 1,
+      "note": null,
+      "addedAt": "2026-04-20T09:47:47.068Z"
+    },
+    {
+      "id": "cmo70hj4n000g68q0qrggs5tw",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "orderIdx": 2,
+      "note": null,
+      "addedAt": "2026-04-20T09:47:47.352Z"
+    },
+    {
+      "id": "cmo70hj99000j68q0ead39u54",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo70hj7y000h68q0vnhoukd6",
+      "orderIdx": 3,
+      "note": null,
+      "addedAt": "2026-04-20T09:47:47.517Z"
+    },
+    {
+      "id": "cmo70hjdw000m68q0g8tym3vi",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo70hjck000k68q0gwxym0w0",
+      "orderIdx": 4,
+      "note": null,
+      "addedAt": "2026-04-20T09:47:47.684Z"
+    },
+    {
+      "id": "cmo84uq36000wlkqxqv2ay9b3",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo84uq1k000ulkqxlvdztzz8",
+      "orderIdx": 5,
+      "note": null,
+      "addedAt": "2026-04-21T04:37:47.538Z"
+    },
+    {
+      "id": "cmo84uqvg0011lkqx924ht9k8",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo84uqtz000zlkqxvz5msxhu",
+      "orderIdx": 6,
+      "note": null,
+      "addedAt": "2026-04-21T04:37:48.557Z"
+    },
+    {
+      "id": "cmo84urjf0016lkqxc78ormj3",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo84urhy0014lkqx6ldqqse3",
+      "orderIdx": 7,
+      "note": null,
+      "addedAt": "2026-04-21T04:37:49.420Z"
+    },
+    {
+      "id": "cmo84us6d001blkqxlryythzi",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo84us4s0019lkqxachtsxc8",
+      "orderIdx": 8,
+      "note": null,
+      "addedAt": "2026-04-21T04:37:50.245Z"
+    },
+    {
+      "id": "cmo84usws001glkqxvieom5qs",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "songId": "cmo84usva001elkqxcwiorvmd",
+      "orderIdx": 9,
+      "note": null,
+      "addedAt": "2026-04-21T04:37:51.196Z"
+    }
+  ],
+  "rehearsals": [
+    {
+      "id": "cmo71chgd0001c1gydb6d854k",
+      "ensembleId": "cmo70hij6000168q0s8wwpg9e",
+      "date": "2026-04-28T00:00:00.000Z",
+      "startTime": "19:30",
+      "location": "사당연습실 놀자",
+      "note": "https://map.naver.com/p/entry/place/821737989?placePath=%2Fhome&c=15.00,0,0,0,dh",
+      "createdAt": "2026-04-20T10:11:51.517Z",
+      "updatedAt": "2026-04-20T10:11:51.517Z"
+    }
+  ],
+  "rehearsalSongs": [
+    {
+      "id": "cmo71cmyh0003c1gyd3b1vtma",
+      "rehearsalId": "cmo71chgd0001c1gydb6d854k",
+      "songId": "cmo70hilp000268q0njat20bb",
+      "orderIdx": 0,
+      "note": null,
+      "addedAt": "2026-04-20T10:11:58.650Z"
+    },
+    {
+      "id": "cmo71cpce0005c1gy7wnljg6o",
+      "rehearsalId": "cmo71chgd0001c1gydb6d854k",
+      "songId": "cmo70hit7000768q0tvd92haj",
+      "orderIdx": 1,
+      "note": null,
+      "addedAt": "2026-04-20T10:12:01.743Z"
+    },
+    {
+      "id": "cmo71crjq0007c1gy9rsf4doj",
+      "rehearsalId": "cmo71chgd0001c1gydb6d854k",
+      "songId": "cmo70hj0f000c68q06qkicxnb",
+      "orderIdx": 2,
+      "note": null,
+      "addedAt": "2026-04-20T10:12:04.599Z"
+    },
+    {
+      "id": "cmo71ctr80009c1gy1ozngb78",
+      "rehearsalId": "cmo71chgd0001c1gydb6d854k",
+      "songId": "cmo70hj7y000h68q0vnhoukd6",
+      "orderIdx": 3,
+      "note": null,
+      "addedAt": "2026-04-20T10:12:07.460Z"
+    },
+    {
+      "id": "cmo71cv70000bc1gyadlb5opc",
+      "rehearsalId": "cmo71chgd0001c1gydb6d854k",
+      "songId": "cmo70hjck000k68q0gwxym0w0",
+      "orderIdx": 4,
+      "note": null,
+      "addedAt": "2026-04-20T10:12:09.324Z"
+    }
+  ],
+  "uploadedFiles_metadata": [
+    {
+      "id": "cmo8d03o000006uqjyjggwoe9",
+      "fileName": "This_is_Me.out.mid",
+      "mimeType": "audio/midi",
+      "size": 18556,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T08:25:55.342Z"
+    },
+    {
+      "id": "cmo8evjiz000114jsbtka3fgq",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T09:18:21.852Z"
+    },
+    {
+      "id": "cmo8ffqa50001vzek0f838urk",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T09:34:03.725Z"
+    },
+    {
+      "id": "cmo8fr8t40001x7f4ixzhvb7p",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T09:43:00.953Z"
+    },
+    {
+      "id": "cmo8g37kq0001msf1tltlq5lt",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T09:52:19.227Z"
+    },
+    {
+      "id": "cmo8giun80001j2leqo727r5x",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T10:04:28.964Z"
+    },
+    {
+      "id": "cmo8gr5hl00014k49uhm63u6c",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T10:10:56.266Z"
+    },
+    {
+      "id": "cmo8odmtt0001sex3a0tubheo",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T13:44:22.482Z"
+    },
+    {
+      "id": "cmo8oky0x00014odumdy958sq",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T13:50:03.585Z"
+    },
+    {
+      "id": "cmo8oysfc0001ewimzfzkrn8b",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:00:49.512Z"
+    },
+    {
+      "id": "cmo8p6vnu00015pcmfu5xyqnq",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:07:06.954Z"
+    },
+    {
+      "id": "cmo8prvxl0001ut7cvbl3gefc",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:23:27.081Z"
+    },
+    {
+      "id": "cmo8pshpq0009ut7c631zvdkv",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:23:55.311Z"
+    },
+    {
+      "id": "cmo8pt34u000hut7c2ng9nfur",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:24:23.070Z"
+    },
+    {
+      "id": "cmo8ptynd000put7crb1hnwa9",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:25:03.913Z"
+    },
+    {
+      "id": "cmo8q0yoz0001hqtvp6pe5u5r",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:30:30.564Z"
+    },
+    {
+      "id": "cmo8q1jj90001o92d9zxj0fg8",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:30:57.573Z"
+    },
+    {
+      "id": "cmo8q1zhf0009o92dp6bebcnl",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:31:18.244Z"
+    },
+    {
+      "id": "cmo8q53hc000qo92dsjib3dg5",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:33:43.392Z"
+    },
+    {
+      "id": "cmo8qpff80001w1iyn1bw5ph6",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:49:31.989Z"
+    },
+    {
+      "id": "cmo8qqg5s0009w1iyvs2hj2im",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:50:19.600Z"
+    },
+    {
+      "id": "cmo8qqvvq000hw1iyitfsjdwk",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:50:39.974Z"
+    },
+    {
+      "id": "cmo8r0vqu00018rigapwu7ntv",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T14:58:26.358Z"
+    },
+    {
+      "id": "cmo8s2nqm0001100ct7w3dll2",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T15:27:48.911Z"
+    },
+    {
+      "id": "cmo8s3o3k0009100coplwc54a",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T15:28:36.033Z"
+    },
+    {
+      "id": "cmo8s6ebi0001upqgj3dwq7hw",
+      "fileName": "Dont_you_worry_bout_a_thing.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 9401,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T15:30:43.326Z"
+    },
+    {
+      "id": "cmo8s6ebw0002upqgj6kfhr3f",
+      "fileName": "Dont_you_worry_bout_a_thing.mid",
+      "mimeType": "audio/midi",
+      "size": 18508,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T15:30:43.340Z"
+    },
+    {
+      "id": "cmo8s6ed70005upqgdorsibjt",
+      "fileName": "Dont_you_worry_bout_a_thing.musicxml",
+      "mimeType": "application/vnd.recordare.musicxml+xml",
+      "size": 548423,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T15:30:43.386Z"
+    },
+    {
+      "id": "cmo8s8l8a000111yjts18nbjl",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T15:32:25.594Z"
+    },
+    {
+      "id": "cmo8sfp0v000150njuohiz8v2",
+      "fileName": "Why_we_Sing_acapella.nwctxt",
+      "mimeType": "application/x-nwc",
+      "size": 59953,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T15:37:57.103Z"
+    },
+    {
+      "id": "cmo8takdq0001clkjwhynvmeu",
+      "fileName": "Why_we_Sing_acapella.nwc",
+      "mimeType": "application/x-nwc",
+      "size": 4642,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T16:01:57.423Z"
+    },
+    {
+      "id": "cmo8take20002clkjx2gl7ow3",
+      "fileName": "Why_we_Sing_acapella.mid",
+      "mimeType": "audio/midi",
+      "size": 10629,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T16:01:57.435Z"
+    },
+    {
+      "id": "cmo8takex0005clkjce4lgvec",
+      "fileName": "Why_we_Sing_acapella.musicxml",
+      "mimeType": "application/vnd.recordare.musicxml+xml",
+      "size": 294053,
+      "conductorId": "cmo70gutq0000wyyk2f2oet2i",
+      "createdAt": "2026-04-21T16:01:57.465Z"
+    }
+  ]
+}
