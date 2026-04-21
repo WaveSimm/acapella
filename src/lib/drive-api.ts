@@ -48,7 +48,13 @@ export async function listDriveFiles(folderId: string): Promise<DriveFile[]> {
     if (pageToken) params.set("pageToken", pageToken);
 
     const url = `https://www.googleapis.com/drive/v3/files?${params.toString()}`;
-    const res = await fetch(url, { cache: "no-store" });
+    const res = await fetch(url, {
+      cache: "no-store",
+      headers: {
+        // HTTP 리퍼러 제한 API 키 호환용 — 서버 호출이지만 허용 도메인 referer 전달
+        Referer: process.env.NEXTAUTH_URL ?? "https://acapella-nine.vercel.app/",
+      },
+    });
     if (!res.ok) {
       const body = await res.text();
       if (res.status === 403 || res.status === 404) {
