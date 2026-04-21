@@ -50,13 +50,27 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           followCursor: false,
         });
         osmdRef.current = osmd;
-        // 모든 마디를 한 줄로 (줄 바꿈 없음)
+        // 모든 마디를 한 줄로 (줄 바꿈 없음) + 음표 간격 우선
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rules = (osmd as any).EngravingRules ?? (osmd as any).rules;
         if (rules) {
           rules.RenderSingleHorizontalStaffline = true;
-          // 페이지 너비를 크게 (measure가 모두 펼쳐지도록)
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
+          // 음표 간격: 8분음표 이하(16th/32nd)는 8분음표와 동일한 최소 간격.
+          // 더 긴 음표일수록 넉넉하게. [32nd..whole] 이 아닌 duration index 기반이지만
+          // OSMD 내부 해석을 그대로 사용 — 앞 3개를 동일값으로 만들어 "8분 최소" 구현.
+          rules.NoteDistances = [1.0, 1.0, 1.0, 1.5, 2.0, 2.5, 3.0, 4.0];
+          rules.NoteDistancesScalingFactor = 0.6;
+          // 가사가 음표 간격을 늘리지 않도록 — 겹쳐도 OK
+          rules.LyricsXPadding = 0.0;
+          rules.BetweenSyllabSpace = 0.0;
+          rules.MinimumDistanceBetweenDashes = 0.0;
+          if ("LyricsExtraRequiredSpaceInMeasureBetweenLyricsAndBarline" in rules) {
+            rules.LyricsExtraRequiredSpaceInMeasureBetweenLyricsAndBarline = 0;
+          }
+          if ("LyricsMinimumSpaceBetweenLyricsInMeasure" in rules) {
+            rules.LyricsMinimumSpaceBetweenLyricsInMeasure = 0;
+          }
         }
         // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
