@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { useEffect, useState } from "react";
 
 // esm.sh가 Tone.js·@magenta/music 의존성까지 자동 번들해서 단일 ES module로 제공.
 // CDN별 subpath 불일치·combine 필터링 이슈를 전부 회피.
@@ -60,9 +60,6 @@ export function MidiPlayer({ src }: Props) {
     return () => { cancelled = true; };
   }, [status]);
 
-  const reactId = useId();
-  const visualizerId = `midi-viz${reactId.replace(/[:]/g, "")}`;
-
   return (
     <div className="rounded-xl border border-gray-200 bg-white p-4">
       {status === "loading" && (
@@ -81,24 +78,13 @@ export function MidiPlayer({ src }: Props) {
         </div>
       )}
       {status === "ready" && (
-        <>
-          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-          {/* @ts-expect-error web component */}
-          <midi-player
-            src={src}
-            sound-font={DEFAULT_SOUND_FONT}
-            visualizer={`#${visualizerId}`}
-            style={{ width: "100%", display: "block" }}
-          />
-          {/* eslint-disable-next-line @typescript-eslint/ban-ts-comment */}
-          {/* @ts-expect-error web component */}
-          <midi-visualizer
-            id={visualizerId}
-            src={src}
-            type="piano-roll"
-            style={{ width: "100%", height: 120, marginTop: 8 }}
-          />
-        </>
+        /* eslint-disable-next-line @typescript-eslint/ban-ts-comment */
+        /* @ts-expect-error web component */
+        <midi-player
+          src={src}
+          sound-font={DEFAULT_SOUND_FONT}
+          style={{ width: "100%", display: "block" }}
+        />
       )}
       <p className="mt-2 text-[10px] text-gray-400">
         SoundFont(피아노)로 재생. 원본이 필요하면 악보·MIDI 섹션에서 다운로드.
