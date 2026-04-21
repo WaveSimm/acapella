@@ -378,14 +378,14 @@ export function YouTubePlayer({ url }: Props) {
 
         {abMode !== "active" && (
           <div
-            className="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-red-500"
+            className="absolute left-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-blue-500"
             style={{ width: `${pct(currentTime)}%` }}
           />
         )}
 
         <div
           className={`absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full shadow-md ${
-            abMode === "active" ? "bg-emerald-600" : "bg-red-600"
+            abMode === "active" ? "bg-emerald-600" : "bg-blue-600"
           }`}
           style={{ left: `${pct(currentTime)}%` }}
         />
@@ -428,7 +428,7 @@ export function YouTubePlayer({ url }: Props) {
           </svg>
         </button>
 
-        <button onClick={togglePlay} className="rounded-full bg-red-600 p-3 text-white shadow-md transition-colors hover:bg-red-700" title={playing ? "일시정지" : "재생"} aria-label={playing ? "일시정지" : "재생"}>
+        <button onClick={togglePlay} className="rounded-full bg-blue-600 p-3 text-white shadow-md transition-colors hover:bg-blue-700" title={playing ? "일시정지" : "재생"} aria-label={playing ? "일시정지" : "재생"}>
           {playing ? (
             <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
           ) : (
@@ -444,7 +444,7 @@ export function YouTubePlayer({ url }: Props) {
 
         <div className="mx-1 h-6 w-px bg-gray-200" />
 
-        <button onClick={toggleLoop} title={loop ? "전체 반복 해제" : "전체 반복"} aria-label={loop ? "전체 반복 해제" : "전체 반복"} aria-pressed={loop} className={`rounded-full p-2 transition-colors ${loop ? "bg-red-100 text-red-600" : "text-gray-400 hover:bg-gray-100"}`}>
+        <button onClick={toggleLoop} title={loop ? "전체 반복 해제" : "전체 반복"} aria-label={loop ? "전체 반복 해제" : "전체 반복"} aria-pressed={loop} className={`rounded-full p-2 transition-colors ${loop ? "bg-blue-100 text-blue-600" : "text-gray-400 hover:bg-gray-100"}`}>
           <svg className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" d="M4 12V9a3 3 0 013-3h10l-3-3m0 0l3 3m-3-3M20 12v3a3 3 0 01-3 3H7l3 3m0 0l-3-3m3 3" />
           </svg>

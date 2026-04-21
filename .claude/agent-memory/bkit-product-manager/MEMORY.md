@@ -1,0 +1,1 @@
+- [unified-media-player Plan](project_unified_player.md) — 미디어 플레이어 통합 Plan 완료, Phase 1=AudioEngine+공유컴포넌트

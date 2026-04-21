@@ -72,6 +72,7 @@ export function MidiPlayer({ src }: Props) {
   const [abMode, setAbMode] = useState<ABMode>("off");
   const [pointA, setPointA] = useState<number | null>(null);
   const [pointB, setPointB] = useState<number | null>(null);
+  const [dragging, setDragging] = useState<"a" | "b" | "seek" | null>(null);
 
   // 스크립트 로드
   useEffect(() => {
@@ -91,11 +92,11 @@ export function MidiPlayer({ src }: Props) {
     if (!el) return;
     const t = typeof el.currentTime === "number" ? el.currentTime : 0;
     setCurrentTime(t);
-    if (abMode === "active" && pointA !== null && pointB !== null) {
+    if (abMode === "active" && pointA !== null && pointB !== null && !dragging) {
       if (t >= pointB) el.currentTime = pointA;
     }
     rafRef.current = requestAnimationFrame(tick);
-  }, [abMode, pointA, pointB]);
+  }, [abMode, pointA, pointB, dragging]);
 
   // 이벤트 바인딩 + duration 읽기
   useEffect(() => {
@@ -171,23 +172,72 @@ export function MidiPlayer({ src }: Props) {
     setCurrentTime(el.currentTime);
   };
 
-  const seekFromEvent = (clientX: number) => {
+  const getTimeFromClientX = useCallback((clientX: number) => {
     const bar = barRef.current;
-    const el = elRef.current;
-    if (!bar || !el || !duration) return;
+    if (!bar || !duration) return 0;
     const rect = bar.getBoundingClientRect();
     const ratio = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width));
-    const t = ratio * duration;
+    return ratio * duration;
+  }, [duration]);
+
+  const handleBarDown = (e: React.MouseEvent | React.TouchEvent) => {
+    e.preventDefault();
+    const el = elRef.current;
+    if (!el || !duration) return;
+    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX;
+    const t = getTimeFromClientX(clientX);
+
     if (abMode === "setA") {
       setPointA(t);
       setAbMode("setB");
-    } else if (abMode === "setB" && pointA !== null) {
-      if (t > pointA) { setPointB(t); setAbMode("active"); el.currentTime = pointA; setCurrentTime(pointA); return; }
-    } else {
-      el.currentTime = t;
-      setCurrentTime(t);
+      return;
     }
+    if (abMode === "setB" && pointA !== null) {
+      if (t > pointA) {
+        setPointB(t);
+        setAbMode("active");
+        el.currentTime = pointA;
+        setCurrentTime(pointA);
+      }
+      return;
+    }
+    if (abMode === "active" && pointA !== null && pointB !== null) {
+      const handleRadius = duration * 0.02;
+      if (Math.abs(t - pointA) < handleRadius) { setDragging("a"); return; }
+      if (Math.abs(t - pointB) < handleRadius) { setDragging("b"); return; }
+    }
+    setDragging("seek");
+    el.currentTime = t;
+    setCurrentTime(t);
   };
+
+  useEffect(() => {
+    if (!dragging) return;
+    const onMove = (e: MouseEvent | TouchEvent) => {
+      const clientX = "touches" in e ? e.touches[0]?.clientX ?? 0 : e.clientX;
+      const t = getTimeFromClientX(clientX);
+      const el = elRef.current;
+      if (dragging === "seek" && el) {
+        el.currentTime = t;
+        setCurrentTime(t);
+      } else if (dragging === "a" && pointB !== null) {
+        setPointA(Math.min(t, pointB - 0.5));
+      } else if (dragging === "b" && pointA !== null) {
+        setPointB(Math.max(t, pointA + 0.5));
+      }
+    };
+    const onUp = () => setDragging(null);
+    window.addEventListener("mousemove", onMove);
+    window.addEventListener("mouseup", onUp);
+    window.addEventListener("touchmove", onMove, { passive: false });
+    window.addEventListener("touchend", onUp);
+    return () => {
+      window.removeEventListener("mousemove", onMove);
+      window.removeEventListener("mouseup", onUp);
+      window.removeEventListener("touchmove", onMove);
+      window.removeEventListener("touchend", onUp);
+    };
+  }, [dragging, pointA, pointB, getTimeFromClientX]);
 
   const toggleAB = () => {
     if (abMode === "off") { setAbMode("setA"); setPointA(null); setPointB(null); }
@@ -253,9 +303,9 @@ export function MidiPlayer({ src }: Props) {
 
       <div
         ref={barRef}
-        onMouseDown={(e) => seekFromEvent(e.clientX)}
-        onTouchStart={(e) => seekFromEvent(e.touches[0].clientX)}
-        className="relative mb-4 h-8 cursor-pointer"
+        onMouseDown={handleBarDown}
+        onTouchStart={handleBarDown}
+        className="relative mb-4 h-8 cursor-pointer touch-none select-none"
       >
         <div className="absolute left-0 right-0 top-1/2 h-1.5 -translate-y-1/2 rounded-full bg-gray-200" />
         <div
