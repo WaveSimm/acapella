@@ -94,48 +94,22 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     };
   }, [src, onReady, zoom]);
 
-  // 2) 파트 선택 → 재렌더 없이 전체 SVG에 CSS 필터.
-  //    선택한 파트 = 100% 불투명, 나머지 = 15% dim. 재렌더 없음 → 재생 중 끊김 없음.
-  //    (완전 숨김은 OSMD가 노트/가사를 스태프와 별개 그룹에 배치해 CSS만으로는 어려움)
+  // 2) 파트 선택 → Instrument.Visible + 재렌더 (완전 숨김)
+  //    재생 중이면 짧은 오디오 공백은 감수 (1회 끊김이 반복 끊김보다 UX 나음).
   useEffect(() => {
-    if (status !== "ready" || !mountRef.current || !osmdRef.current) return;
-    const mount = mountRef.current;
+    if (status !== "ready" || !osmdRef.current) return;
     const osmd = osmdRef.current;
     const instruments = osmd.Sheet.Instruments ?? [];
-    const numInst = Math.max(1, instruments.length);
-
-    // g.vf-stave 를 instrument 개수로 그룹핑해 data-part 태깅 (매 실행 idempotent)
-    const staves = mount.querySelectorAll<SVGGElement>("g.vf-stave");
-    const staffYRanges: { name: string; top: number; bottom: number }[] = [];
-    staves.forEach((el, i) => {
-      const instIdx = i % numInst;
-      const name = instruments[instIdx]?.Name || `Part${instIdx}`;
-      el.setAttribute("data-part", name);
-      const r = el.getBoundingClientRect();
-      const mountRect = mount.getBoundingClientRect();
-      const top = r.top - mountRect.top + (mount.scrollTop || 0);
-      const bottom = r.bottom - mountRect.top + (mount.scrollTop || 0);
-      staffYRanges.push({ name, top: top - 20, bottom: bottom + 20 });
+    let changed = false;
+    instruments.forEach((inst) => {
+      const shouldShow = !highlightPart || inst.Name === highlightPart;
+      if (inst.Visible !== shouldShow) {
+        inst.Visible = shouldShow;
+        changed = true;
+      }
     });
-
-    // 모든 SVG 요소를 해당 Y-range 에 매핑해서 파트 태깅
-    const allElements = mount.querySelectorAll<SVGElement>("svg g, svg path, svg text, svg rect, svg line");
-    const mountRect2 = mount.getBoundingClientRect();
-    allElements.forEach((el) => {
-      try {
-        const r = el.getBoundingClientRect();
-        const cy = (r.top + r.bottom) / 2 - mountRect2.top + (mount.scrollTop || 0);
-        // cy 에 해당하는 파트 찾기
-        const range = staffYRanges.find((s) => cy >= s.top && cy <= s.bottom);
-        if (range) {
-          if (!highlightPart || range.name === highlightPart) {
-            el.style.opacity = "";
-          } else {
-            el.style.opacity = "0.15";
-          }
-        }
-      } catch { /* ignore */ }
-    });
+    if (!changed) return;
+    try { osmd.render(); } catch (e) { console.warn("[ScoreViewer] render error:", e); }
   }, [highlightPart, status]);
 
   // 3) zoom 변경 시 재렌더
