@@ -48,6 +48,7 @@ export interface NoteItem {
   dots: number;
   tied: boolean;
   slur: boolean; // 다음 노트와 syllable 공유 (멜리스마)
+  slurEvent?: "start" | "stop"; // MusicXML <slur> 태그용
   lyric?: LyricSyllable;
 }
 
@@ -73,13 +74,14 @@ export interface Staff {
   patch: number;
   volume: number;
   clef: string;
-  keySig: Record<string, number>;
-  fifths: number;
+  keySig: Record<string, number>;  // 현재(pitch 계산용) - 중간 전조로 갱신됨
+  fifths: number;                  // 초기 조성 (MusicXML 첫 마디 표시용) - 한 번만 설정
   timeSig: string;
   octaveShift: number;
   measures: Measure[];
-  lyricRaw?: string; // 원본 Lyric1 텍스트
+  lyricRaw?: string;
   hidden?: boolean;
+  _initialKeySet?: boolean;
 }
 
 function normalizeTimeSig(sig: string): string {
@@ -343,8 +345,12 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         keySigFound = true;
       }
       if (current) {
+        // 첫 번째 Key만 표시용 fifths에 반영. 이후는 pitch 계산용 keySig만 갱신 (mid-score 전조).
+        if (!current._initialKeySet) {
+          current.fifths = parsed.fifths;
+          current._initialKeySet = true;
+        }
         current.keySig = parsed.ksMap;
-        current.fifths = parsed.fifths;
       }
     } else if (cmd === "TimeSig") {
       const norm = normalizeTimeSig(p.Signature);
@@ -448,6 +454,30 @@ export function parseNwc(input: Buffer | string): ParsedScore {
     if (!staff.lyricRaw) continue;
     const syllables = tokenizeLyrics(staff.lyricRaw);
     assignLyricsToNotes(staff, syllables);
+  }
+
+  // slur 이벤트 계산: 연속된 Slur 플래그 구간을 첫 노트 start + 끝 노트 stop으로
+  for (const staff of score.staves) {
+    let inSlur = false;
+    for (const m of staff.measures) {
+      for (const n of m.notes) {
+        if (n.type !== "note") continue;
+        if (!inSlur && n.slur) {
+          n.slurEvent = "start";
+          inSlur = true;
+        } else if (inSlur && !n.slur) {
+          n.slurEvent = "stop";
+          inSlur = false;
+        }
+        // 중간 노트 또는 밖 노트: 이벤트 없음
+      }
+    }
+    // 남은 열린 슬러는 마지막 노트에 stop 붙여 닫기
+    if (inSlur) {
+      const allNotes = staff.measures.flatMap((m) => m.notes).filter((n) => n.type === "note");
+      const last = allNotes[allNotes.length - 1];
+      if (last && last.type === "note" && !last.slurEvent) last.slurEvent = "stop";
+    }
   }
 
   // 숨김(Visible:N) 스태프 제외

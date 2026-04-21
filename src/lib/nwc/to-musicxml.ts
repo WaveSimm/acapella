@@ -75,6 +75,13 @@ export function buildMusicXml(parsed: ParsedScore): string {
               const accName = accMap[p.explicitAccidental];
               if (accName) parts.push(`<accidental>${accName}</accidental>`);
             }
+            // notations (slur, tied 등)은 첫 pitch(chord 노트)에만
+            if (pi === 0) {
+              const notations: string[] = [];
+              if (n.slurEvent) notations.push(`<slur type="${n.slurEvent}" number="1"/>`);
+              if (n.tied) notations.push(`<tied type="start"/>`);
+              if (notations.length > 0) parts.push(`<notations>${notations.join("")}</notations>`);
+            }
             // 가사: 첫 pitch (chord 노트)에만 붙임
             if (pi === 0 && n.lyric) {
               parts.push(`<lyric number="1"><syllabic>${n.lyric.syllabic}</syllabic><text>${escapeXml(n.lyric.text)}</text></lyric>`);
