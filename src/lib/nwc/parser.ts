@@ -8,6 +8,11 @@ export interface Pitch {
   explicitAccidental: number | null;
 }
 
+export interface LyricSyllable {
+  text: string;
+  syllabic: "single" | "begin" | "middle" | "end";
+}
+
 export interface NoteItem {
   type: "note";
   pitches: Pitch[];
@@ -16,6 +21,7 @@ export interface NoteItem {
   durType: string;
   dots: number;
   tied: boolean;
+  lyric?: LyricSyllable;
 }
 
 export interface RestItem {
@@ -45,6 +51,7 @@ export interface Staff {
   timeSig: string;
   octaveShift: number;
   measures: Measure[];
+  lyricRaw?: string; // 원본 Lyric1 텍스트
 }
 
 export interface ParsedScore {
@@ -314,6 +321,9 @@ export function parseNwc(input: Buffer | string): ParsedScore {
       if (p.Trans) current.octaveShift = Math.round((parseInt(p.Trans, 10) || 0) / 12);
     } else if (cmd === "Clef" && current) {
       current.clef = p.Type || "Treble";
+    } else if (cmd === "Lyric1" && current && typeof p.Text === "string") {
+      // 첫 번째 verse만 사용 (MVP). 여러 verse는 차후 number 속성으로.
+      current.lyricRaw = p.Text;
     } else if (cmd === "Bar" && current) {
       currentMeasure = { notes: [] };
       current.measures.push(currentMeasure);
@@ -366,5 +376,73 @@ export function parseNwc(input: Buffer | string): ParsedScore {
     }
   }
 
+  // 각 스태프의 가사를 노트에 매핑 (파싱이 끝난 후)
+  for (const staff of score.staves) {
+    if (!staff.lyricRaw) continue;
+    const syllables = tokenizeLyrics(staff.lyricRaw);
+    assignLyricsToNotes(staff, syllables);
+  }
+
   return score;
+}
+
+interface SyllableToken {
+  text: string;
+  continuation: boolean; // 다음 음절과 이어짐 (하이픈 뒤)
+  extension: boolean;    // '_' 확장 마커 (melisma)
+}
+
+function tokenizeLyrics(raw: string): SyllableToken[] {
+  // NWC 이스케이프 처리: \' → '  ,  \\ → \  ,  \n 은 verse 구분자 (literal 2-char)
+  // Verse 1만 사용 (MVP)
+  const verses = raw.split("\\n");
+  const verse1 = verses[0] || "";
+  const unescaped = verse1.replace(/\\'/g, "'").replace(/\\"/g, '"');
+
+  const tokens: SyllableToken[] = [];
+  let buf = "";
+  const flush = (continuation: boolean) => {
+    if (buf.length > 0) {
+      tokens.push({ text: buf, continuation, extension: false });
+      buf = "";
+    }
+  };
+  for (let i = 0; i < unescaped.length; i++) {
+    const c = unescaped[i];
+    if (c === " " || c === "\t") flush(false);
+    else if (c === "-") flush(true);
+    else if (c === "_") {
+      flush(false);
+      tokens.push({ text: "_", continuation: false, extension: true });
+    } else {
+      buf += c;
+    }
+  }
+  flush(false);
+  return tokens;
+}
+
+function assignLyricsToNotes(staff: Staff, syllables: SyllableToken[]) {
+  let si = 0;
+  let prevContinuation = false;
+  for (const m of staff.measures) {
+    for (const n of m.notes) {
+      if (n.type !== "note") continue;
+      if (si >= syllables.length) return;
+      const syl = syllables[si];
+      if (syl.extension) {
+        // 확장: 이전 음절을 유지 (현재 노트에 가사 없음)
+        si++;
+        continue;
+      }
+      let syllabic: LyricSyllable["syllabic"];
+      if (prevContinuation && syl.continuation) syllabic = "middle";
+      else if (prevContinuation && !syl.continuation) syllabic = "end";
+      else if (!prevContinuation && syl.continuation) syllabic = "begin";
+      else syllabic = "single";
+      n.lyric = { text: syl.text, syllabic };
+      prevContinuation = syl.continuation;
+      si++;
+    }
+  }
 }

@@ -75,6 +75,10 @@ export function buildMusicXml(parsed: ParsedScore): string {
               const accName = accMap[p.explicitAccidental];
               if (accName) parts.push(`<accidental>${accName}</accidental>`);
             }
+            // 가사: 첫 pitch (chord 노트)에만 붙임
+            if (pi === 0 && n.lyric) {
+              parts.push(`<lyric number="1"><syllabic>${n.lyric.syllabic}</syllabic><text>${escapeXml(n.lyric.text)}</text></lyric>`);
+            }
             lines.push(`      <note>${parts.join("")}</note>`);
           }
         }
