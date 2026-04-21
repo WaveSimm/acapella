@@ -50,12 +50,14 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           followCursor: false,
         });
         osmdRef.current = osmd;
-        // 모든 마디를 한 줄로 (줄 바꿈 없음). OSMD 기본 간격 계산 유지.
+        // 모든 마디를 한 줄로 (줄 바꿈 없음).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rules = (osmd as any).EngravingRules ?? (osmd as any).rules;
         if (rules) {
           rules.RenderSingleHorizontalStaffline = true;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
+          // [테스트1] 가사가 마디 폭 늘리지 않도록 (단일 룰만 추가)
+          if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
         }
         // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
