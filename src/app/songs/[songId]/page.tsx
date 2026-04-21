@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { SongPlayer } from "@/components/practice/song-player";
 import { SongMetaEditor } from "@/components/songs/song-meta-editor";
 import { ResourceEditor } from "@/components/songs/resource-editor";
+import { NwcUploader } from "@/components/practice/nwc-uploader";
+import { NwcScorePlayer } from "@/components/practice/nwc-score-player";
 
 export const dynamic = "force-dynamic";
 
@@ -84,6 +86,22 @@ export default async function SongDetailPage({ params }: Props) {
             sourceSite: r.sourceSite,
           }))}
         />
+      </section>
+
+      {(() => {
+        const nwcMidi = song.resources.find((r) => r.sourceSite === "NWC 변환" && r.resourceType === "MIDI");
+        const nwcScore = song.resources.find((r) => r.sourceSite === "NWC 변환" && r.resourceType === "SCORE_PREVIEW");
+        if (!nwcMidi || !nwcScore) return null;
+        return (
+          <section className="mt-6">
+            <h2 className="mb-3 text-sm font-semibold text-gray-700">악보 연동 연습 (NWC)</h2>
+            <NwcScorePlayer midiSrc={nwcMidi.url} musicXmlSrc={nwcScore.url} />
+          </section>
+        );
+      })()}
+
+      <section className="mt-6">
+        <NwcUploader songId={song.id} />
       </section>
 
       {song.resources.some((r) => r.resourceType === "SCORE_PREVIEW" || r.resourceType === "MIDI") && (

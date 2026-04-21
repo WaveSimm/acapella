@@ -12,6 +12,7 @@ type ABMode = "off" | "setA" | "setB" | "active";
 
 interface Props {
   src: string;
+  onTimeUpdate?: (time: number, duration: number, playing: boolean) => void;
 }
 
 let loadPromise: Promise<void> | null = null;
@@ -53,7 +54,7 @@ interface MidiEl extends HTMLElement {
   stop: () => void;
 }
 
-export function MidiPlayer({ src }: Props) {
+export function MidiPlayer({ src, onTimeUpdate }: Props) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     typeof window !== "undefined" && !!customElements.get("midi-player") ? "ready" : "loading",
   );
@@ -79,6 +80,12 @@ export function MidiPlayer({ src }: Props) {
     abRef.current = { abMode, pointA, pointB, dragging };
   }, [abMode, pointA, pointB, dragging]);
 
+  // onTimeUpdate 콜백을 ref로 보관해 effect 재실행 방지
+  const onTimeUpdateRef = useRef(onTimeUpdate);
+  useEffect(() => {
+    onTimeUpdateRef.current = onTimeUpdate;
+  }, [onTimeUpdate]);
+
   // 스크립트 로드
   useEffect(() => {
     if (status !== "loading") return;
@@ -103,6 +110,8 @@ export function MidiPlayer({ src }: Props) {
       if (!el) return;
       const t = typeof el.currentTime === "number" ? el.currentTime : 0;
       setCurrentTime(t);
+      const d = typeof el.duration === "number" ? el.duration : 0;
+      onTimeUpdateRef.current?.(t, d, !!el.playing);
       const s = abRef.current;
       if (
         s.abMode === "active" &&
