@@ -94,31 +94,47 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     };
   }, [src, onReady, zoom]);
 
-  // 2) 파트 선택 → CSS로 가시성 토글 (재렌더 없음, 재생 중 끊김 방지)
+  // 2) 파트 선택 → 재렌더 없이 전체 SVG에 CSS 필터.
+  //    선택한 파트 = 100% 불투명, 나머지 = 15% dim. 재렌더 없음 → 재생 중 끊김 없음.
+  //    (완전 숨김은 OSMD가 노트/가사를 스태프와 별개 그룹에 배치해 CSS만으로는 어려움)
   useEffect(() => {
     if (status !== "ready" || !mountRef.current || !osmdRef.current) return;
     const mount = mountRef.current;
     const osmd = osmdRef.current;
     const instruments = osmd.Sheet.Instruments ?? [];
-    const numInst = instruments.length || 1;
+    const numInst = Math.max(1, instruments.length);
 
-    // g.vf-stave 를 순서대로 그룹핑. 0..numInst-1 = 시스템1의 각 파트.
+    // g.vf-stave 를 instrument 개수로 그룹핑해 data-part 태깅 (매 실행 idempotent)
     const staves = mount.querySelectorAll<SVGGElement>("g.vf-stave");
+    const staffYRanges: { name: string; top: number; bottom: number }[] = [];
     staves.forEach((el, i) => {
       const instIdx = i % numInst;
       const name = instruments[instIdx]?.Name || `Part${instIdx}`;
       el.setAttribute("data-part", name);
+      const r = el.getBoundingClientRect();
+      const mountRect = mount.getBoundingClientRect();
+      const top = r.top - mountRect.top + (mount.scrollTop || 0);
+      const bottom = r.bottom - mountRect.top + (mount.scrollTop || 0);
+      staffYRanges.push({ name, top: top - 20, bottom: bottom + 20 });
     });
 
-    // stave와 연관된 notes/lyrics/clefs는 OSMD가 staveline 단위로 transform 적용하므로
-    // 일단 단순히 stave 자체를 가렸다가 보이는 전환으로 실험.
-    staves.forEach((el) => {
-      const name = el.getAttribute("data-part");
-      if (!highlightPart || name === highlightPart) {
-        el.style.display = "";
-      } else {
-        el.style.display = "none";
-      }
+    // 모든 SVG 요소를 해당 Y-range 에 매핑해서 파트 태깅
+    const allElements = mount.querySelectorAll<SVGElement>("svg g, svg path, svg text, svg rect, svg line");
+    const mountRect2 = mount.getBoundingClientRect();
+    allElements.forEach((el) => {
+      try {
+        const r = el.getBoundingClientRect();
+        const cy = (r.top + r.bottom) / 2 - mountRect2.top + (mount.scrollTop || 0);
+        // cy 에 해당하는 파트 찾기
+        const range = staffYRanges.find((s) => cy >= s.top && cy <= s.bottom);
+        if (range) {
+          if (!highlightPart || range.name === highlightPart) {
+            el.style.opacity = "";
+          } else {
+            el.style.opacity = "0.15";
+          }
+        }
+      } catch { /* ignore */ }
     });
   }, [highlightPart, status]);
 
