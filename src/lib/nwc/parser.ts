@@ -66,6 +66,11 @@ export interface Measure {
   notes: MeasureItem[];
 }
 
+export interface KeyChange {
+  measureNumber: number; // 변경이 적용될 마디 번호 (1-based)
+  fifths: number;
+}
+
 export interface Staff {
   name: string;
   label: string;
@@ -79,6 +84,7 @@ export interface Staff {
   timeSig: string;
   octaveShift: number;
   measures: Measure[];
+  keyChanges: KeyChange[];         // mid-score 조성 변화
   lyricRaw?: string;
   hidden?: boolean;
   _initialKeySet?: boolean;
@@ -349,10 +355,15 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         keySigFound = true;
       }
       if (current) {
-        // 첫 번째 Key만 표시용 fifths에 반영. 이후는 pitch 계산용 keySig만 갱신 (mid-score 전조).
         if (!current._initialKeySet) {
           current.fifths = parsed.fifths;
           current._initialKeySet = true;
+        } else {
+          // mid-score 조성 변화 — 현재 작성 중인 마디 번호 기록 (1-based)
+          current.keyChanges.push({
+            measureNumber: current.measures.length,
+            fifths: parsed.fifths,
+          });
         }
         current.keySig = parsed.ksMap;
       }
@@ -377,6 +388,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         timeSig: score.timeSig,
         octaveShift: 0,
         measures: [],
+        keyChanges: [],
       };
       score.staves.push(current);
       currentMeasure = { notes: [] };

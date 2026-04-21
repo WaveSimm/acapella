@@ -38,7 +38,8 @@ export function buildMusicXml(parsed: ParsedScore): string {
       const m = staff.measures[mi];
       if (m.notes.length === 0 && mi === staff.measures.length - 1) continue;
 
-      lines.push(`    <measure number="${mi + 1}">`);
+      const measureNumber = mi + 1;
+      lines.push(`    <measure number="${measureNumber}">`);
       if (mi === 0) {
         lines.push(`      <attributes>`);
         lines.push(`        <divisions>${XML_DIVISIONS}</divisions>`);
@@ -50,6 +51,12 @@ export function buildMusicXml(parsed: ParsedScore): string {
         lines.push(`      </attributes>`);
         if (staff === parsed.staves[0] && parsed.tempo) {
           lines.push(`      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${parsed.tempo}</per-minute></metronome></direction-type><sound tempo="${parsed.tempo}"/></direction>`);
+        }
+      } else {
+        // mid-score 조성 변화 — 해당 마디 시작에 <attributes><key> 추가
+        const keyChange = staff.keyChanges?.find((kc) => kc.measureNumber === measureNumber);
+        if (keyChange) {
+          lines.push(`      <attributes><key><fifths>${keyChange.fifths}</fifths></key></attributes>`);
         }
       }
       for (const n of m.notes) {
