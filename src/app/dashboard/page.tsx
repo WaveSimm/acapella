@@ -59,7 +59,7 @@ export default async function DashboardPage() {
                 <p className="mt-1 truncate text-xs text-gray-400">
                   단원 접속 링크:{" "}
                   <Link href={`/c/${ens.shareCode}`} className="text-blue-500">
-                    /c/{ens.shareCode}
+                    https://acapella-nine.vercel.app/c/{ens.shareCode}
                   </Link>
                 </p>
               </div>

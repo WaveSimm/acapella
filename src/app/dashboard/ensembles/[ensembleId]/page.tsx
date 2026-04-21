@@ -93,7 +93,7 @@ export default async function EnsembleDetailPage({ params }: Props) {
         {ensemble.description && (
           <p className="mt-1 text-sm text-gray-500">{ensemble.description}</p>
         )}
-        <div className="mt-2 flex items-center gap-3 text-sm">
+        <div className="mt-2 flex flex-wrap items-center gap-3 text-sm">
           <span className="text-gray-500">
             공유코드:{" "}
             <code className="rounded bg-gray-100 px-2 py-0.5 font-mono font-bold text-blue-600">
@@ -108,6 +108,12 @@ export default async function EnsembleDetailPage({ params }: Props) {
             단원 페이지 보기 →
           </Link>
         </div>
+        <p className="mt-1 truncate text-xs text-gray-400">
+          단원 접속 링크:{" "}
+          <Link href={`/c/${ensemble.shareCode}`} className="text-blue-500">
+            https://acapella-nine.vercel.app/c/{ensemble.shareCode}
+          </Link>
+        </p>
       </div>
 
       <EnsembleTabs
