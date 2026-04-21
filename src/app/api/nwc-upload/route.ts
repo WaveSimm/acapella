@@ -60,8 +60,21 @@ export async function POST(request: NextRequest) {
 
   const baseName = file.name.replace(/\.(nwc|nwctxt)$/i, "");
 
-  // UploadedFile + PracticeResource를 한 트랜잭션으로
+  // UploadedFile + PracticeResource를 한 트랜잭션으로. 기존 NWC 변환 리소스는 선삭제.
   const result = await prisma.$transaction(async (tx) => {
+    // 기존 "NWC 변환" 리소스 삭제 (중복 누적 방지)
+    const oldRes = await tx.practiceResource.findMany({
+      where: { songId: song.id, sourceSite: "NWC 변환" },
+      select: { id: true, fileId: true },
+    });
+    if (oldRes.length > 0) {
+      await tx.practiceResource.deleteMany({ where: { id: { in: oldRes.map((r) => r.id) } } });
+      const fileIds = oldRes.map((r) => r.fileId).filter((x): x is string => !!x);
+      if (fileIds.length > 0) {
+        await tx.uploadedFile.deleteMany({ where: { id: { in: fileIds } } });
+      }
+    }
+
     // 원본 NWC 저장
     const nwcFile = await tx.uploadedFile.create({
       data: {
