@@ -74,6 +74,11 @@ export function MidiPlayer({ src }: Props) {
   const [pointB, setPointB] = useState<number | null>(null);
   const [dragging, setDragging] = useState<"a" | "b" | "seek" | null>(null);
 
+  const abRef = useRef({ abMode, pointA, pointB, dragging });
+  useEffect(() => {
+    abRef.current = { abMode, pointA, pointB, dragging };
+  }, [abMode, pointA, pointB, dragging]);
+
   // 스크립트 로드
   useEffect(() => {
     if (status !== "loading") return;
@@ -86,17 +91,18 @@ export function MidiPlayer({ src }: Props) {
     return () => { cancelled = true; };
   }, [status]);
 
-  // rAF로 currentTime 추적 + AB 점프
+  // rAF로 currentTime 추적 + AB 점프 (deps 없이 안정화)
   const tick = useCallback(() => {
     const el = elRef.current;
     if (!el) return;
     const t = typeof el.currentTime === "number" ? el.currentTime : 0;
     setCurrentTime(t);
-    if (abMode === "active" && pointA !== null && pointB !== null && !dragging) {
-      if (t >= pointB) el.currentTime = pointA;
+    const s = abRef.current;
+    if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
+      if (t >= s.pointB) el.currentTime = s.pointA;
     }
     rafRef.current = requestAnimationFrame(tick);
-  }, [abMode, pointA, pointB, dragging]);
+  }, []);
 
   // 이벤트 바인딩 + duration 읽기
   useEffect(() => {
@@ -198,6 +204,7 @@ export function MidiPlayer({ src }: Props) {
         setAbMode("active");
         el.currentTime = pointA;
         setCurrentTime(pointA);
+        if (!el.playing) el.start();  // B 설정 직후 자동 재생
       }
       return;
     }

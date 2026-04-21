@@ -210,15 +210,22 @@ function AudioPlayer({ src, id, onError }: { src: string; id: string; onError: (
   const [pointB, setPointB] = useState<number | null>(null);
   const [dragging, setDragging] = useState<"a" | "b" | "seek" | null>(null);
 
+  // tick이 매번 재생성되지 않도록 AB 상태를 ref에 동기화
+  const abRef = useRef({ abMode, pointA, pointB, dragging });
+  useEffect(() => {
+    abRef.current = { abMode, pointA, pointB, dragging };
+  }, [abMode, pointA, pointB, dragging]);
+
   const tick = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
     setCurrentTime(audio.currentTime);
-    if (abMode === "active" && pointA !== null && pointB !== null && !dragging) {
-      if (audio.currentTime >= pointB) audio.currentTime = pointA;
+    const s = abRef.current;
+    if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
+      if (audio.currentTime >= s.pointB) audio.currentTime = s.pointA;
     }
     rafRef.current = requestAnimationFrame(tick);
-  }, [abMode, pointA, pointB, dragging]);
+  }, []);
 
   useEffect(() => {
     const audio = audioRef.current;
@@ -286,6 +293,7 @@ function AudioPlayer({ src, id, onError }: { src: string; id: string; onError: (
         setPointB(t);
         setAbMode("active");
         audio.currentTime = pointA;
+        audio.play().catch(() => {});  // B 설정 직후 자동 재생
       }
       return;
     }
