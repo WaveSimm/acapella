@@ -216,19 +216,17 @@ function AudioPlayer({ src, id, onError }: { src: string; id: string; onError: (
     abRef.current = { abMode, pointA, pointB, dragging };
   }, [abMode, pointA, pointB, dragging]);
 
-  const lastSeekRef = useRef(0);
-
   const tick = useCallback(() => {
     const audio = audioRef.current;
     if (!audio) return;
     setCurrentTime(audio.currentTime);
     const s = abRef.current;
     if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
-      const now = performance.now();
-      // 쿨다운: 브라우저가 seek를 처리하는 동안 중복 jump 방지
-      if (audio.currentTime >= s.pointB && now - lastSeekRef.current > 200) {
-        lastSeekRef.current = now;
+      // 조건 2개: pointB 지났고 + 아직 pointA 근처로 돌아오지 않았을 때만 seek
+      // (seek 반영이 지연되어 currentTime이 B 근처로 남아 있는 동안 중복 트리거 방지)
+      if (audio.currentTime >= s.pointB && audio.currentTime > s.pointA + 0.3) {
         audio.currentTime = s.pointA;
+        if (audio.paused) audio.play().catch(() => {});
       }
     }
     rafRef.current = requestAnimationFrame(tick);

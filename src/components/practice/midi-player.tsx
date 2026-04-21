@@ -91,8 +91,6 @@ export function MidiPlayer({ src }: Props) {
     return () => { cancelled = true; };
   }, [status]);
 
-  const lastSeekRef = useRef(0);
-
   // rAF로 currentTime 추적 + AB 점프 (deps 없이 안정화)
   const tick = useCallback(() => {
     const el = elRef.current;
@@ -101,10 +99,9 @@ export function MidiPlayer({ src }: Props) {
     setCurrentTime(t);
     const s = abRef.current;
     if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
-      const now = performance.now();
-      if (t >= s.pointB && now - lastSeekRef.current > 200) {
-        lastSeekRef.current = now;
+      if (t >= s.pointB && t > s.pointA + 0.3) {
         el.currentTime = s.pointA;
+        if (!el.playing) el.start();
       }
     }
     rafRef.current = requestAnimationFrame(tick);
