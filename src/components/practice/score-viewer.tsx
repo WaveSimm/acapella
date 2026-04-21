@@ -72,6 +72,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           drawPartNames: true,
           drawMeasureNumbers: true,
           drawTitle: false,
+          followCursor: true,
         });
         osmdRef.current = osmd;
         const res = await fetch(src);
@@ -134,15 +135,16 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
 
   // 4) 커서 이동 + 시스템 단위 스크롤
   useEffect(() => {
-    if (status !== "ready" || !osmdRef.current || cursorTime == null || !tempoBpm) return;
+    if (status !== "ready" || !osmdRef.current || cursorTime == null) return;
     const osmd = osmdRef.current;
+    const bpm = tempoBpm && tempoBpm > 0 ? tempoBpm : 120;
     try {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const cursor = osmd.cursor as any;
       if (!cursor) return;
       cursor.show();
 
-      const targetWhole = (cursorTime * tempoBpm) / 240;
+      const targetWhole = (cursorTime * bpm) / 240;
 
       const getCurrent = (): number => {
         const ts = cursor.Iterator?.currentTimeStamp;
@@ -163,10 +165,12 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         cursor.next();
         curr = getCurrent();
       }
+      // 커서 시각적 재배치
+      try { cursor.update?.(); } catch { /* noop */ }
 
       scrollToCursorSystem();
-    } catch {
-      // 무시
+    } catch (e) {
+      console.warn("[ScoreViewer] cursor sync error:", e);
     }
   }, [cursorTime, tempoBpm, status]);
 
@@ -177,24 +181,59 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     if (!osmd || !viewport || !mount) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const cursor = osmd.cursor as any;
+
+    // 커서 위치 확보: cursorElement가 없거나 size 0이면 Iterator의 currentMeasure 바운딩박스로 fallback
+    let cursorTopInViewport = NaN;
     const cursorEl: HTMLElement | undefined = cursor?.cursorElement;
-    if (!cursorEl) return;
+    if (cursorEl) {
+      const r = cursorEl.getBoundingClientRect();
+      if (r.height > 0 || r.width > 0) {
+        cursorTopInViewport = r.top - viewport.getBoundingClientRect().top;
+      }
+    }
 
-    const mountRect = mount.getBoundingClientRect();
-    const cursorRect = cursorEl.getBoundingClientRect();
-    // cursorEl이 아직 layout되지 않은 경우 (width/height 0) 건너뜀
-    if (cursorRect.height === 0 && cursorRect.width === 0) return;
-    const cursorYInMount = cursorRect.top - mountRect.top + viewport.scrollTop;
+    // Fallback 1: 현재 measure의 첫 번째 vf-stave 요소를 DOM 에서 찾아 그 Y를 사용
+    if (isNaN(cursorTopInViewport)) {
+      const mi = cursor?.Iterator?.currentMeasureIndex;
+      if (typeof mi === "number" && mi >= 0) {
+        // measure index → svg 상 stave index. OSMD는 첫 시스템부터 순서대로 measure를 배치.
+        // 각 system의 각 instrument는 measureCount 개 measure를 포함하지만, 순서가 복잡하므로
+        // 단순히 measure-number 기반으로 첫 번째 g.vf-stave의 y 찾기.
+        const staves = mount.querySelectorAll<SVGGElement>("g.vf-stave");
+        if (staves.length > 0) {
+          // 시스템 단위 이동이 목적이므로 cursor가 속한 시스템의 Y 사용
+          const systems = systemsRef.current;
+          if (systems.length > 0 && mi >= 0) {
+            // 현재 measure가 몇 번째 시스템에 있는지 추정: 전체 measure 수 / 시스템 수
+            // 보다 정확한 방법 필요하지만 MVP 대응
+            const totalMeasures = osmd.GraphicSheet?.MeasureList?.length ?? 0;
+            if (totalMeasures > 0) {
+              const sysIdx = Math.min(
+                systems.length - 1,
+                Math.floor((mi / totalMeasures) * systems.length),
+              );
+              const target = systems[sysIdx];
+              const desired = Math.max(0, target.y - 10);
+              if (Math.abs(viewport.scrollTop - desired) > 4) {
+                viewport.scrollTo({ top: desired, behavior: "smooth" });
+              }
+              return;
+            }
+          }
+        }
+      }
+      return;
+    }
 
+    // 메인 경로: cursor Y를 뷰포트 좌표계에서 읽어 시스템 경계와 비교
+    const cursorYInMount = cursorTopInViewport + viewport.scrollTop;
     const systems = systemsRef.current;
     if (systems.length === 0) return;
-
     let target = systems[0];
     for (const s of systems) {
       if (cursorYInMount >= s.y - 5) target = s;
       else break;
     }
-
     const desiredScroll = Math.max(0, target.y - 10);
     if (Math.abs(viewport.scrollTop - desiredScroll) > 4) {
       viewport.scrollTo({ top: desiredScroll, behavior: "smooth" });
