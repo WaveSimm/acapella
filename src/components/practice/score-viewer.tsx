@@ -5,7 +5,7 @@ import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 
 interface Props {
   src: string;
-  highlightPart?: string | null; // 파트 이름 (예: "Sop"). null이면 전체 기본 표시
+  highlightPart?: string | null;
   /** 재생 현재 시간 (초). 값이 변하면 OSMD 커서를 해당 위치로 이동. */
   cursorTime?: number | null;
   /** 악보 Tempo (BPM). 커서를 시간 → 마디 위치 매핑할 때 사용. */
@@ -20,27 +20,35 @@ export interface ScoreInfo {
   duration: number | null;
 }
 
+interface SystemRect {
+  y: number;
+  height: number;
+}
+
 export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady }: Props) {
-  const containerRef = useRef<HTMLDivElement>(null);
+  const viewportRef = useRef<HTMLDivElement>(null);  // 고정 높이 스크롤 컨테이너
+  const mountRef = useRef<HTMLDivElement>(null);     // OSMD 가 그리는 전체 악보
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
+  const systemsRef = useRef<SystemRect[]>([]);
+  const viewportHeightRef = useRef<number>(260);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errMsg, setErrMsg] = useState("");
 
-  // 초기 로드 + 렌더
+  // 1) 로드 + 렌더
   useEffect(() => {
-    if (!containerRef.current) return;
+    if (!mountRef.current) return;
     let cancelled = false;
     (async () => {
       try {
         setStatus("loading");
         const mod = await import("opensheetmusicdisplay");
         if (cancelled) return;
-        const osmd = new mod.OpenSheetMusicDisplay(containerRef.current!, {
+        const osmd = new mod.OpenSheetMusicDisplay(mountRef.current!, {
           autoResize: true,
           drawingParameters: "compact",
           drawPartNames: true,
           drawMeasureNumbers: true,
-          drawTitle: true,
+          drawTitle: false,
         });
         osmdRef.current = osmd;
         const res = await fetch(src);
@@ -53,6 +61,15 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
         const partNames: string[] = (osmd.Sheet.Instruments ?? []).map((ins) => ins.Name || "");
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tempoBpm = (osmd.Sheet as any).DefaultStartTempoInBpm ?? null;
+
+        // 시스템 경계 측정 (첫 번째 렌더 직후)
+        const systems = measureSystems(mountRef.current!, partNames.length || 1);
+        systemsRef.current = systems;
+        // 가장 큰 시스템 높이에 맞춰 뷰포트 높이 결정 (+여백)
+        const maxH = systems.reduce((m, s) => Math.max(m, s.height), 0);
+        viewportHeightRef.current = Math.max(200, Math.ceil(maxH + 24));
+        if (viewportRef.current) viewportRef.current.style.height = viewportHeightRef.current + "px";
+
         setStatus("ready");
         onReady?.({ title, partNames, tempoBpm, duration: null });
       } catch (e) {
@@ -67,10 +84,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
     };
   }, [src, onReady]);
 
-  // 커서 제어: cursorTime(초) + tempoBpm을 이용해 악보 내 현재 위치로 이동
-  // OSMD 커서 iterator.currentTimeStamp 는 Fraction(whole notes 단위)
-  // time(초) × BPM / 60 = quarter notes = timeStamp × 4
-  // 즉 timeStamp = time × BPM / 240
+  // 2) 커서 이동 + 시스템 단위 스크롤
   useEffect(() => {
     if (status !== "ready" || !osmdRef.current || cursorTime == null || !tempoBpm) return;
     const osmd = osmdRef.current;
@@ -82,8 +96,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
 
       const targetWhole = (cursorTime * tempoBpm) / 240;
 
-      // 현재 위치 평가
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const getCurrent = (): number => {
         const ts = cursor.Iterator?.currentTimeStamp;
         if (!ts) return 0;
@@ -94,35 +106,31 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
 
       let curr = getCurrent();
       if (targetWhole < curr) {
-        // 역방향 시크: reset 후 앞으로 진행
         cursor.reset();
         curr = getCurrent();
       }
-      // 목표 위치까지 진행 (한계 있는 루프)
       let safety = 10000;
       while (curr < targetWhole && safety-- > 0) {
-        const ended = cursor.Iterator?.EndReached;
-        if (ended) break;
+        if (cursor.Iterator?.EndReached) break;
         cursor.next();
         curr = getCurrent();
       }
+
+      // 시스템 단위 스크롤: 현재 커서 Y에 해당하는 시스템을 뷰포트 상단에 배치
+      scrollToCursorSystem();
     } catch {
-      // OSMD 내부 오류는 조용히 무시
+      // 조용히 무시
     }
   }, [cursorTime, tempoBpm, status]);
 
-  // 파트 하이라이트: 선택된 파트 외에는 opacity 낮춤 (DOM 조작)
+  // 3) 파트 하이라이트
   useEffect(() => {
-    if (status !== "ready" || !containerRef.current || !osmdRef.current) return;
+    if (status !== "ready" || !mountRef.current || !osmdRef.current) return;
     const osmd = osmdRef.current;
-    const container = containerRef.current;
+    const container = mountRef.current;
     const instruments = osmd.Sheet.Instruments ?? [];
-    // OSMD는 각 instrument의 voice를 svg의 g 요소에 부여하는데 속성이 버전마다 다름.
-    // 우회: 각 스태프 라인(SVG g.vf-stave)에 순서대로 data 속성을 붙여 CSS 제어.
     const staves = container.querySelectorAll<SVGGElement>("g.vf-stave");
     if (staves.length === 0) return;
-
-    // 마디별로 instrument 개수만큼 반복되는 구조 가정. 한 system(줄)에서 staves 순서 = instruments 순서
     const numInstruments = instruments.length || 1;
     staves.forEach((s, idx) => {
       const instIdx = idx % numInstruments;
@@ -130,21 +138,52 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
       s.setAttribute("data-part", name);
     });
 
-    // 하이라이트 적용: 선택된 파트만 정상, 나머지는 회색
     if (!highlightPart) {
       staves.forEach((s) => {
         s.style.opacity = "1";
-        s.style.filter = "";
       });
-      // 노트 헤드 색상 복원
-      container.querySelectorAll<SVGElement>("[data-part]").forEach((el) => (el.style.color = ""));
     } else {
       staves.forEach((s) => {
-        const isHighlight = s.getAttribute("data-part") === highlightPart;
-        s.style.opacity = isHighlight ? "1" : "0.35";
+        s.style.opacity = s.getAttribute("data-part") === highlightPart ? "1" : "0.35";
       });
     }
   }, [highlightPart, status]);
+
+  function scrollToCursorSystem() {
+    const osmd = osmdRef.current;
+    const viewport = viewportRef.current;
+    const mount = mountRef.current;
+    if (!osmd || !viewport || !mount) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const cursor = (osmd.cursor as any);
+    const cursorEl: HTMLElement | SVGElement | undefined = cursor?.cursorElement;
+    if (!cursorEl) return;
+
+    // 커서의 Y 좌표 (mount 컨테이너 기준)
+    const mountRect = mount.getBoundingClientRect();
+    const cursorRect = (cursorEl as HTMLElement).getBoundingClientRect();
+    const cursorYInMount = cursorRect.top - mountRect.top;
+
+    // 커서가 속한 시스템 찾기
+    const systems = systemsRef.current;
+    let target: SystemRect | null = null;
+    for (const s of systems) {
+      if (cursorYInMount >= s.y && cursorYInMount < s.y + s.height) {
+        target = s;
+        break;
+      }
+    }
+    if (!target && systems.length > 0) {
+      // 마지막 시스템 넘어간 경우 마지막 시스템 유지
+      target = systems[systems.length - 1];
+    }
+    if (!target) return;
+
+    const desiredScroll = Math.max(0, target.y - 10);
+    if (Math.abs(viewport.scrollTop - desiredScroll) > 4) {
+      viewport.scrollTo({ top: desiredScroll, behavior: "smooth" });
+    }
+  }
 
   if (status === "error") {
     return (
@@ -161,10 +200,40 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, onReady 
         <div className="py-12 text-center text-xs text-gray-400">악보를 불러오는 중...</div>
       )}
       <div
-        ref={containerRef}
-        className="w-full overflow-x-auto"
-        style={{ minHeight: status === "loading" ? 0 : 200 }}
-      />
+        ref={viewportRef}
+        className="relative w-full overflow-hidden"
+        style={{
+          height: status === "loading" ? 0 : viewportHeightRef.current,
+          transition: "height 200ms ease",
+        }}
+      >
+        <div ref={mountRef} className="w-full" />
+      </div>
     </div>
   );
+}
+
+/**
+ * DOM에서 system 경계를 측정.
+ * OSMD는 각 staff line을 <g class="vf-stave"> 로 렌더. 순서대로 instrument 수만큼이 한 시스템.
+ */
+function measureSystems(mount: HTMLDivElement, numInstruments: number): SystemRect[] {
+  const staves = mount.querySelectorAll<SVGGElement>("g.vf-stave");
+  if (staves.length === 0) return [];
+  const mountRect = mount.getBoundingClientRect();
+  const systems: SystemRect[] = [];
+  const sysCount = Math.ceil(staves.length / numInstruments);
+  for (let i = 0; i < sysCount; i++) {
+    const firstIdx = i * numInstruments;
+    const lastIdx = Math.min((i + 1) * numInstruments - 1, staves.length - 1);
+    const first = staves[firstIdx];
+    const last = staves[lastIdx];
+    if (!first || !last) continue;
+    const fr = first.getBoundingClientRect();
+    const lr = last.getBoundingClientRect();
+    const y = fr.top - mountRect.top;
+    const height = lr.bottom - fr.top;
+    systems.push({ y, height });
+  }
+  return systems;
 }
