@@ -1,1 +1,2 @@
 - [unified-media-player Plan](project_unified_player.md) — 미디어 플레이어 통합 Plan 완료, Phase 1=AudioEngine+공유컴포넌트
+- [drive-folder-sync Plan](project_drive_folder_sync.md) — Google Drive 폴더 자동 동기화 Plan 완료, 3-Phase, DB 필드 기반영

@@ -4,6 +4,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { EnsembleTabs } from "@/components/ensembles/ensemble-tabs";
+import { DriveSyncPanel } from "@/components/ensembles/drive-sync-panel";
 
 export const dynamic = "force-dynamic";
 
@@ -121,6 +122,13 @@ export default async function EnsembleDetailPage({ params }: Props) {
         repertoire={repertoire}
         rehearsals={rehearsals}
       />
+
+      <div className="mt-6">
+        <DriveSyncPanel
+          ensembleId={ensemble.id}
+          initialDriveFolderUrl={ensemble.driveFolderUrl}
+        />
+      </div>
     </div>
   );
 }

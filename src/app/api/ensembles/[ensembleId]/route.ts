@@ -6,7 +6,13 @@ import { z } from "zod";
 const patchSchema = z.object({
   name: z.string().min(1).max(100).optional(),
   description: z.string().max(500).nullable().optional(),
+  driveFolderUrl: z.string().max(500).nullable().optional(),
 });
+
+function extractFolderId(url: string): string | null {
+  const m = url.match(/\/folders\/([a-zA-Z0-9_-]+)/);
+  return m ? m[1] : null;
+}
 
 async function verifyOwner(ensembleId: string, userId: string) {
   const ens = await prisma.ensemble.findUnique({
@@ -32,11 +38,31 @@ export async function PATCH(
   const parsed = patchSchema.safeParse(await request.json());
   if (!parsed.success) return NextResponse.json({ error: parsed.error.flatten().fieldErrors }, { status: 400 });
 
+  let driveFolderIdUpdate: { driveFolderId?: string | null } = {};
+  if (parsed.data.driveFolderUrl !== undefined) {
+    if (parsed.data.driveFolderUrl === null || parsed.data.driveFolderUrl.trim() === "") {
+      driveFolderIdUpdate = { driveFolderId: null };
+    } else {
+      const fid = extractFolderId(parsed.data.driveFolderUrl);
+      if (!fid) {
+        return NextResponse.json(
+          { error: "올바른 Drive 폴더 URL이 아닙니다. (형식: https://drive.google.com/drive/folders/...)" },
+          { status: 400 },
+        );
+      }
+      driveFolderIdUpdate = { driveFolderId: fid };
+    }
+  }
+
   const updated = await prisma.ensemble.update({
     where: { id: params.ensembleId },
     data: {
       ...(parsed.data.name !== undefined && { name: parsed.data.name }),
       ...(parsed.data.description !== undefined && { description: parsed.data.description }),
+      ...(parsed.data.driveFolderUrl !== undefined && {
+        driveFolderUrl: parsed.data.driveFolderUrl || null,
+      }),
+      ...driveFolderIdUpdate,
     },
   });
   return NextResponse.json(updated);
