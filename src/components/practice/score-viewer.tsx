@@ -56,8 +56,12 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         if (rules) {
           rules.RenderSingleHorizontalStaffline = true;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
-          // [테스트1] 가사가 마디 폭 늘리지 않도록 (단일 룰만 추가)
           if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
+          // [단계2] 음표 길이별 간격 비례. 인덱스 [64th, 32nd, 16th, 8th, quarter, dotted-quarter, half, dotted-half, whole].
+          // 16분음표 이하는 8분음표와 동일한 최소 간격, 이후는 길이에 따라 점진적으로 증가.
+          if ("NoteDistances" in rules && Array.isArray(rules.NoteDistances)) {
+            rules.NoteDistances = [1.0, 1.0, 1.0, 1.0, 1.4, 1.8, 2.2, 2.8, 3.6];
+          }
         }
         // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
