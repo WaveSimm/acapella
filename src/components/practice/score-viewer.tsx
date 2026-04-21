@@ -54,13 +54,20 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rules = (osmd as any).EngravingRules ?? (osmd as any).rules;
         if (rules) {
-          rules.RenderSingleHorizontalStaffline = true;
+          // RenderSingleHorizontalStaffline 은 duration 비례 배치 알고리즘을 뒤흔든다.
+          // 대신 PageWidth 를 극단적으로 크게 잡아 OSMD 가 줄바꿈 없이 한 줄에 그리되,
+          // 내부적으로는 일반 (duration-proportional) 알고리즘을 사용하게 한다.
+          rules.RenderSingleHorizontalStaffline = false;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
-          // 가사가 마디 폭 확장에 영향 주지 않도록 — 이게 있으면 음표 duration만으로 배치가 결정됨.
-          // 같은 TimeSig 마디들은 총 duration이 같으니 자연스럽게 동일 폭이 되고,
-          // 마디 내부 음표는 자신의 duration에 비례해 배치됨.
+          if ("PageFormat" in rules) {
+            // PageFormat이 설정되어 있으면 그 폭을 우선 사용하므로 리셋
+            try { rules.PageFormat = undefined; } catch { /* noop */ }
+          }
           if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
         }
+        // 매우 큰 페이지 폭으로 강제 → 모든 마디가 한 줄에 들어가도록
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        try { (osmd as any).setCustomPageFormat?.(99999, 2000); } catch { /* noop */ }
         // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
         const res = await fetch(`${src}${sep}t=${Date.now()}`, { cache: "no-cache" });
