@@ -56,10 +56,14 @@ export async function GET(
   // RFC 5987: non-ASCII 파일명은 filename*=UTF-8''... 로
   const disposition = `inline; filename*=UTF-8''${encodeURIComponent(file.fileName)}`;
 
+  // XML/MusicXML은 charset 명시해 브라우저가 항상 UTF-8로 파싱
+  const isXml = /xml/i.test(file.mimeType);
+  const contentType = isXml ? `${file.mimeType}; charset=utf-8` : file.mimeType;
+
   return new NextResponse(body, {
     status: 200,
     headers: {
-      "content-type": file.mimeType,
+      "content-type": contentType,
       "content-length": String(file.size),
       "content-disposition": disposition,
       "cache-control": "private, max-age=3600",

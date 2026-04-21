@@ -58,10 +58,20 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           // 페이지 너비를 크게 (measure가 모두 펼쳐지도록)
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
         }
-        const res = await fetch(src);
+        // 캐시 버스트: 업로드 직후 stale 캐시 방지
+        const sep = src.includes("?") ? "&" : "?";
+        const res = await fetch(`${src}${sep}t=${Date.now()}`, { cache: "no-cache" });
         if (!res.ok) throw new Error(`악보 로딩 실패 (HTTP ${res.status})`);
         const xml = await res.text();
-        await osmd.load(xml);
+        if (xml.length < 100 || !xml.includes("<score-partwise")) {
+          throw new Error(`악보 데이터 형식 오류 (길이 ${xml.length})`);
+        }
+        try {
+          await osmd.load(xml);
+        } catch (loadErr) {
+          const msg = loadErr instanceof Error ? loadErr.message : String(loadErr);
+          throw new Error(`OSMD load 실패: ${msg}`);
+        }
         if (cancelled) return;
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         (osmd as any).zoom = zoom;
