@@ -91,7 +91,9 @@ export function MidiPlayer({ src }: Props) {
     return () => { cancelled = true; };
   }, [status]);
 
-  // 100ms 폴링 (YouTube/Audio와 동일)
+  // 100ms 폴링. MIDI 엔진(Tone Transport)은 재생 중 currentTime 재설정을 잘 처리 못 해서
+  // stop → seek → start 시퀀스로 AB 루프를 수행. 중복 방지용 처리 중 플래그 포함.
+  const abSeekingRef = useRef(false);
   useEffect(() => {
     if (status !== "ready") return;
     if (timerRef.current) clearInterval(timerRef.current);
@@ -101,11 +103,27 @@ export function MidiPlayer({ src }: Props) {
       const t = typeof el.currentTime === "number" ? el.currentTime : 0;
       setCurrentTime(t);
       const s = abRef.current;
-      if (s.abMode === "active" && s.pointA !== null && s.pointB !== null && !s.dragging) {
-        if (t >= s.pointB) {
-          el.currentTime = s.pointA;
-          if (!el.playing) el.start();
-        }
+      if (
+        s.abMode === "active" &&
+        s.pointA !== null &&
+        s.pointB !== null &&
+        !s.dragging &&
+        !abSeekingRef.current &&
+        t >= s.pointB
+      ) {
+        abSeekingRef.current = true;
+        const pointA = s.pointA;
+        try { el.stop(); } catch {}
+        el.currentTime = pointA;
+        // 다음 tick에서 play가 중첩되지 않도록 micro delay 후 start
+        setTimeout(() => {
+          const cur = elRef.current;
+          if (cur) {
+            cur.currentTime = pointA;
+            try { cur.start(); } catch {}
+          }
+          abSeekingRef.current = false;
+        }, 30);
       }
     }, 100);
     return () => {
