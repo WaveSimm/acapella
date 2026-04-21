@@ -50,40 +50,22 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           followCursor: false,
         });
         osmdRef.current = osmd;
-        // 모든 마디를 한 줄로 (줄 바꿈 없음) + 음표 간격 우선
+        // 모든 마디를 한 줄로 (줄 바꿈 없음) + 가사가 마디 폭을 늘리지 않도록만
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rules = (osmd as any).EngravingRules ?? (osmd as any).rules;
         if (rules) {
           rules.RenderSingleHorizontalStaffline = true;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
 
-          // ── 음표 간격 ──────────────────────────────────────────────────────
-          // NoteDistances 인덱스: [64th, 32nd, 16th, 8th, quarter, dotted-quarter, half, dotted-half, whole]
-          // 앞 3개(64th·32nd·16th)를 8분음표(index=3)와 동일하게 고정 → 짧은 음표도 8분음표 최소 간격 유지.
-          // 더 긴 음표는 길이에 비례해 넉넉하게.
-          rules.NoteDistances = [1.5, 1.5, 1.5, 1.5, 2.0, 2.5, 3.0, 3.5, 4.5];
-          // NoteDistancesScalingFactors: NoteDistances와 같은 길이의 배열. 균일하게 0.6 적용.
-          rules.NoteDistancesScalingFactors = [0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6, 0.6];
-          // VexFlow 내부 spacing 파라미터 — 기본값보다 약간 줄여서 밀도 증가
-          rules.VoiceSpacingMultiplierVexflow = 0.45;
-          rules.VoiceSpacingAddendVexflow = 3.0;
-          // SoftmaxFactor: 낮을수록 짧은 음표와 긴 음표 간격 차이를 줄임 (기본 15)
-          rules.SoftmaxFactorVexFlow = 5.0;
-
-          // ── 가사 간격 (가사가 음표 간격을 늘리지 않도록) ────────────────────
-          // MaximumLyricsElongationFactor: 가사 때문에 마디 폭이 늘어나는 최대 배율. 1.0 = 늘리지 않음.
-          rules.MaximumLyricsElongationFactor = 1.0;
-          // LyricsUseXPaddingForLongLyrics: false → 긴 가사를 위한 음표 뒤 padding 비활성화
-          rules.LyricsUseXPaddingForLongLyrics = false;
-          // 가사 겹침 허용 범위를 크게 — 다음 마디까지 넘어가도 OK
-          rules.LyricOverlapAllowedIntoNextMeasure = 999;
-          // 음절 간 최소/최대 거리를 0으로 — 자연 음표 간격만 사용
-          rules.BetweenSyllableMinimumDistance = 0.0;
-          rules.BetweenSyllableMaximumDistance = 0.0;
-          rules.HorizontalBetweenLyricsDistance = 0.0;
-          rules.MinimumDistanceBetweenDashes = 0.0;
-          // 짧은 가사를 위한 x-shift 제거
-          rules.LyricsExtraXShiftForShortLyrics = 0.0;
+          // 가사가 마디 폭에 영향 주는 것만 막음. 음표 간격은 OSMD 기본값 유지
+          // (기본값을 건드리면 레이아웃 계산이 길어지거나 무한 루프가 될 수 있음)
+          if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
+          if ("LyricsUseXPaddingForLongLyrics" in rules) rules.LyricsUseXPaddingForLongLyrics = false;
+          if ("LyricOverlapAllowedIntoNextMeasure" in rules) rules.LyricOverlapAllowedIntoNextMeasure = 999;
+          if ("BetweenSyllableMinimumDistance" in rules) rules.BetweenSyllableMinimumDistance = 0.0;
+          if ("BetweenSyllableMaximumDistance" in rules) rules.BetweenSyllableMaximumDistance = 0.0;
+          if ("HorizontalBetweenLyricsDistance" in rules) rules.HorizontalBetweenLyricsDistance = 0.0;
+          if ("MinimumDistanceBetweenDashes" in rules) rules.MinimumDistanceBetweenDashes = 0.0;
         }
         // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
