@@ -2,10 +2,17 @@
 
 import { useEffect, useId, useState } from "react";
 
-// html-midi-player 저자 권장 combine URL
-// (Tone.js + focus-visible + @magenta/music core + html-midi-player 단일 요청)
-const MIDI_PLAYER_SCRIPT =
+// html-midi-player 저자 권장 combine URL. 일부 네트워크/광고차단기가 "combine" 경로를 막을 수 있어
+// 실패 시 개별 스크립트로 폴백.
+const MIDI_PLAYER_COMBINED =
   "https://cdn.jsdelivr.net/combine/npm/tone@14.7.58,npm/@magenta/[email protected]/es6/core.js,npm/focus-visible@5,npm/[email protected]";
+
+const MIDI_PLAYER_FALLBACK_SCRIPTS = [
+  "https://unpkg.com/tone@14.7.58/build/Tone.js",
+  "https://unpkg.com/focus-visible@5/dist/focus-visible.min.js",
+  "https://unpkg.com/@magenta/[email protected]/es6/core.js",
+  "https://unpkg.com/[email protected]",
+];
 
 const DEFAULT_SOUND_FONT =
   "https://storage.googleapis.com/magentadata/js/soundfonts/sgm_plus";
@@ -16,26 +23,40 @@ interface Props {
 
 let loadPromise: Promise<void> | null = null;
 
-function ensureMidiPlayer(): Promise<void> {
-  if (typeof window === "undefined") return Promise.resolve();
-  if (customElements.get("midi-player")) return Promise.resolve();
+function injectOne(src: string, id: string): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (document.getElementById(id)) return resolve();
+    const s = document.createElement("script");
+    s.id = id;
+    s.src = src;
+    s.async = false; // 순서 보존
+    s.onload = () => resolve();
+    s.onerror = () => reject(new Error(`스크립트 로드 실패: ${src}`));
+    document.head.appendChild(s);
+  });
+}
+
+async function ensureMidiPlayer(): Promise<void> {
+  if (typeof window === "undefined") return;
+  if (customElements.get("midi-player")) return;
   if (loadPromise) return loadPromise;
 
-  loadPromise = new Promise<void>((resolve, reject) => {
-    const existing = document.getElementById("midi-player-cdn") as HTMLScriptElement | null;
-    if (existing) {
-      pollCustomElement().then(resolve).catch(reject);
+  loadPromise = (async () => {
+    // 1차: jsdelivr combine URL (가장 빠름, 한 번 요청)
+    try {
+      await injectOne(MIDI_PLAYER_COMBINED, "midi-player-combined");
+      await pollCustomElement();
       return;
+    } catch (err) {
+      console.warn("combine URL 실패, unpkg 폴백 시도:", err);
     }
-    const s = document.createElement("script");
-    s.id = "midi-player-cdn";
-    s.src = MIDI_PLAYER_SCRIPT;
-    s.async = true;
-    s.crossOrigin = "anonymous";
-    s.onload = () => pollCustomElement().then(resolve).catch(reject);
-    s.onerror = () => reject(new Error(`스크립트 로드 실패: ${MIDI_PLAYER_SCRIPT}`));
-    document.head.appendChild(s);
-  }).catch((err) => {
+
+    // 2차: unpkg 개별 스크립트
+    for (let i = 0; i < MIDI_PLAYER_FALLBACK_SCRIPTS.length; i++) {
+      await injectOne(MIDI_PLAYER_FALLBACK_SCRIPTS[i], `midi-player-fallback-${i}`);
+    }
+    await pollCustomElement();
+  })().catch((err) => {
     loadPromise = null;
     throw err;
   });
