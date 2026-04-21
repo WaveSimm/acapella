@@ -60,7 +60,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           // [단계3] 모든 마디 동일 폭 — 같은 TimeSig(2/2)에서 모든 마디의 총 duration이 같으므로
           // 마디 폭도 동일해야 자연스러움. 음표는 마디 내에서 duration 비례로 배치됨.
           if ("FixedMeasureWidth" in rules) rules.FixedMeasureWidth = true;
-          if ("FixedMeasureWidthFixedValue" in rules) rules.FixedMeasureWidthFixedValue = 8.0;
+          if ("FixedMeasureWidthFixedValue" in rules) rules.FixedMeasureWidthFixedValue = 16.0;
         }
         // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
