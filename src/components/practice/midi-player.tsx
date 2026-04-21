@@ -269,9 +269,33 @@ export function MidiPlayer({ src }: Props) {
           />
         )}
         <div
-          className="absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full bg-blue-600 shadow"
+          className={`absolute top-1/2 h-4 w-4 -translate-x-1/2 -translate-y-1/2 rounded-full shadow ${
+            abMode === "active" ? "bg-emerald-600" : "bg-blue-600"
+          }`}
           style={{ left: `${pct(currentTime)}%` }}
         />
+        {pointA !== null && (abMode === "setB" || abMode === "active") && (
+          <div
+            className="pointer-events-none absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-600 bg-white shadow"
+            style={{ left: `${pct(pointA)}%` }}
+          >
+            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-emerald-700">A</span>
+          </div>
+        )}
+        {pointB !== null && abMode === "active" && (
+          <div
+            className="pointer-events-none absolute top-1/2 h-5 w-5 -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-emerald-600 bg-white shadow"
+            style={{ left: `${pct(pointB)}%` }}
+          >
+            <span className="absolute -top-5 left-1/2 -translate-x-1/2 text-[10px] font-bold text-emerald-700">B</span>
+          </div>
+        )}
+        {abMode === "setA" && (
+          <div
+            className="pointer-events-none absolute top-1/2 h-6 w-0.5 -translate-x-1/2 -translate-y-1/2 bg-amber-500 opacity-70"
+            style={{ left: `${pct(currentTime)}%` }}
+          />
+        )}
       </div>
 
       <div className="flex items-center justify-center gap-1">
@@ -318,6 +342,8 @@ export function MidiPlayer({ src }: Props) {
           {SPEEDS[speedIdx]}x
         </button>
       </div>
+      {abMode === "setA" && <p className="mt-2 text-center text-[10px] text-amber-600">바에서 시작점을 탭하세요</p>}
+      {abMode === "setB" && <p className="mt-2 text-center text-[10px] text-amber-600">바에서 끝점을 탭하세요</p>}
     </div>
   );
 }
