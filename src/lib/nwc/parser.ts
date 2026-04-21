@@ -323,15 +323,13 @@ export function parseNwc(input: Buffer | string): ParsedScore {
   } else {
     const head = input.toString("ascii", 0, Math.min(32, input.length));
     if (head.startsWith("[NWZ]")) {
-      // Binary NWZ: zlib 해제 후 latin1
+      // Binary NWZ: zlib 해제 후 latin1 (바이트 보존)
       text = inflateSync(input.slice(6)).toString("latin1");
     } else if (head.startsWith("!NoteWorthyComposer")) {
-      // NWCtxt plain text: UTF-8 기본, 실패 시 latin1
-      try {
-        text = input.toString("utf-8");
-      } catch {
-        text = input.toString("latin1");
-      }
+      // NWCtxt plain text: latin1로 바이트 보존. 한글 필드는 decodeKorean이 UTF-8/CP949 자동 판별.
+      // (전체를 UTF-8로 미리 decode하면 한글 바이트 시퀀스가 먼저 unicode chars로 변환되어
+      // decodeKorean이 이중 decode를 시도하면서 \uFFFD 로 깨진다.)
+      text = input.toString("latin1");
     } else {
       throw new Error("NWC V2 (NWZ) 또는 NWCtxt 형식이 아닙니다.");
     }
