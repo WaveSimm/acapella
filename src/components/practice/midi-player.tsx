@@ -92,8 +92,9 @@ export function MidiPlayer({ src }: Props) {
   }, [status]);
 
   // 100ms 폴링. MIDI 엔진(Tone Transport)은 재생 중 currentTime 재설정을 잘 처리 못 해서
-  // stop → seek → start 시퀀스로 AB 루프를 수행. 중복 방지용 처리 중 플래그 포함.
+  // stop → seek → start 시퀀스로 AB 루프를 수행. 중복 방지 + 긴 쿨다운(엔진 재시작 지연 대비).
   const abSeekingRef = useRef(false);
+  const abCooldownUntilRef = useRef(0);
   useEffect(() => {
     if (status !== "ready") return;
     if (timerRef.current) clearInterval(timerRef.current);
@@ -109,13 +110,16 @@ export function MidiPlayer({ src }: Props) {
         s.pointB !== null &&
         !s.dragging &&
         !abSeekingRef.current &&
+        Date.now() > abCooldownUntilRef.current &&
         t >= s.pointB
       ) {
         abSeekingRef.current = true;
+        abCooldownUntilRef.current = Date.now() + 600;
         const pointA = s.pointA;
         try { el.stop(); } catch {}
         el.currentTime = pointA;
-        // 다음 tick에서 play가 중첩되지 않도록 micro delay 후 start
+        setCurrentTime(pointA);
+        // 엔진 재시작 지연 대비: 충분한 딜레이 후 start, 쿨다운으로 중복 트리거 차단
         setTimeout(() => {
           const cur = elRef.current;
           if (cur) {
@@ -123,7 +127,7 @@ export function MidiPlayer({ src }: Props) {
             try { cur.start(); } catch {}
           }
           abSeekingRef.current = false;
-        }, 30);
+        }, 60);
       }
     }, 100);
     return () => {
