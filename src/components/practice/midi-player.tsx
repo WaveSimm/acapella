@@ -66,6 +66,10 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
   const rafRef = useRef<number | null>(null);
   const lastUpdateRef = useRef(0);
   const lastTimeRef = useRef(0);
+  // AudioContext 워밍업으로 인한 Transport drift 보정.
+  // 첫 note 이벤트 발화 시점의 Transport currentTime 을 기준으로 offset 계산.
+  // 이후 displayTime = rawCurrentTime - offset
+  const audioStartOffsetRef = useRef<number | null>(null);
 
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -114,19 +118,22 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
       if (el) {
         const now = Date.now();
         if (now - lastUpdateRef.current >= 100) {
-          const t = typeof el.currentTime === "number" ? el.currentTime : 0;
+          lastUpdateRef.current = now;
+          const rawT = typeof el.currentTime === "number" ? el.currentTime : 0;
           const isPlaying = !!el.playing;
-          // 점프 필터: 재생 중 직전 값 대비 1초 이상 앞서가면 engine 글리치로 간주.
-          const delta = t - lastTimeRef.current;
-          const glitchy = isPlaying && delta > 1.0;
-          lastTimeRef.current = t;
-          if (!glitchy) {
-            lastUpdateRef.current = now;
-            setCurrentTime(t);
-            const d = typeof el.duration === "number" ? el.duration : 0;
-            onTimeUpdateRef.current?.(t, d, isPlaying);
-            runABLoop(el, t);
+          // offset 이 아직 측정 안된 재생 시작 전 구간은 display time = 0
+          // offset 측정 후: displayT = rawT - offset (음수면 0 클램프)
+          let displayT: number;
+          if (audioStartOffsetRef.current === null) {
+            displayT = isPlaying ? 0 : rawT;
+          } else {
+            displayT = Math.max(0, rawT - audioStartOffsetRef.current);
           }
+          lastTimeRef.current = displayT;
+          setCurrentTime(displayT);
+          const d = typeof el.duration === "number" ? el.duration : 0;
+          onTimeUpdateRef.current?.(displayT, d, isPlaying);
+          runABLoop(el, rawT);  // AB 루프는 raw time 기준 (엔진과 동기)
         }
       }
       rafRef.current = requestAnimationFrame(tick);
@@ -175,22 +182,38 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
       const d = typeof el.duration === "number" && !isNaN(el.duration) ? el.duration : 0;
       if (d > 0) setDuration(d);
     };
-    const onStart = () => setPlaying(true);
+    const onStart = () => {
+      setPlaying(true);
+      // offset 은 첫 note 이벤트에서 재측정될 수 있도록 null 로 (pause 후 resume 포함)
+      // — 단, 한 번 측정된 offset 은 같은 AudioContext 세션에서 유효하므로 재사용 해도 무방.
+      // 여기서는 재측정 기회 열어두기 위해 null. 첫 note 이벤트 시 다시 채워짐.
+    };
     const onStop = () => {
       setPlaying(false);
       const t = typeof el.currentTime === "number" ? el.currentTime : 0;
       const d = typeof el.duration === "number" ? el.duration : 0;
-      // 끝까지 재생되어 stop된 경우 loop 처리
       if (loop && d > 0 && t >= d - 0.1) {
         el.currentTime = 0;
         el.start();
       }
     };
     const onLoad = () => syncDuration();
+    // 첫 note 이벤트 — AudioContext 에서 실제 소리 나오는 순간. Transport drift offset 계산.
+    const onNote = (e: Event) => {
+      if (audioStartOffsetRef.current !== null) return;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const detail = (e as CustomEvent<any>).detail;
+      const note = detail?.note ?? detail;
+      const notationTime = typeof note?.startTime === "number" ? note.startTime : 0;
+      const transportTime = typeof el.currentTime === "number" ? el.currentTime : 0;
+      audioStartOffsetRef.current = transportTime - notationTime;
+      console.log("[MidiPlayer] audioStart offset:", audioStartOffsetRef.current.toFixed(2), "(transportAt:", transportTime.toFixed(2), "noteAt:", notationTime.toFixed(2), ")");
+    };
 
     el.addEventListener("start", onStart);
     el.addEventListener("stop", onStop);
     el.addEventListener("load", onLoad);
+    el.addEventListener("note", onNote as EventListener);
 
     // src 로드 후 일정 시점에 duration이 설정되므로 몇 번 체크
     syncDuration();
@@ -204,14 +227,16 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
       el.removeEventListener("start", onStart);
       el.removeEventListener("stop", onStop);
       el.removeEventListener("load", onLoad);
+      el.removeEventListener("note", onNote as EventListener);
       clearInterval(iv);
     };
   }, [status, loop]);
 
-  // src 바뀌면 duration 초기화
+  // src 바뀌면 duration/offset 초기화
   useEffect(() => {
     setDuration(0);
     setCurrentTime(0);
+    audioStartOffsetRef.current = null;
   }, [src]);
 
   // speed 속성

@@ -306,14 +306,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     const overlay = cursorOverlayRef.current;
     if (bounds.length === 0 || !overlay) return;
 
-    // 점프 필터: 정상 재생은 100ms 간격이라 delta ≈ 0.1s. delta > 1s면 engine 버퍼/워밍업 글리치로 간주.
-    const prev = prevCursorTimeRef.current;
-    const delta = cursorTime - prev;
-    if (delta > 1.0) {
-      prevCursorTimeRef.current = cursorTime;
-      if (prev < 0.1) overlay.style.transform = `translateX(${bounds[0].x}px)`;
-      return;
-    }
     prevCursorTimeRef.current = cursorTime;
 
     // measureTimes (MIDI 기반 실제 시간) 가 있으면 MIDI 시간을 권위있는 소스로 사용.
