@@ -71,35 +71,51 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     }
     const secPerMeasure = (tsNum / tsDen) * 240 / bpm;
 
-    // DOM 내 stave 노드는 OSMD 내부 rendering 단위로 쪼개져 있어 마디 수와 1:1 매칭 어려움.
-    // 대신 전체 SVG 폭을 OSMD 소스 마디 수로 균등 분할 (single horizontal line 이므로 타당).
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const totalMeasures = (osmd.Sheet?.SourceMeasures?.length as number) ?? 1;
 
-    // 렌더된 SVG 의 전체 폭 — stave들의 min left ~ max right 계산
-    let minLeft = Infinity, maxRight = -Infinity;
+    // stave 들의 X 위치 수집 + 소트. OSMD subpixel 노이즈 필터링.
+    const xs: { x: number; right: number }[] = [];
     for (const el of Array.from(staves)) {
       const r = el.getBoundingClientRect();
       if (r.width <= 0) continue;
-      const left = r.left - mountRect.left;
-      const right = left + r.width;
-      if (left < minLeft) minLeft = left;
-      if (right > maxRight) maxRight = right;
+      const x = r.left - mountRect.left;
+      xs.push({ x, right: x + r.width });
     }
-    if (!isFinite(minLeft) || !isFinite(maxRight) || totalMeasures < 1) {
+    if (xs.length === 0 || totalMeasures < 1) {
       console.warn("[ScoreViewer] bounds: insufficient stave data");
       return [];
     }
+    xs.sort((a, b) => a.x - b.x);
+    const minLeft = xs[0].x;
+    const maxRight = Math.max(...xs.map((e) => e.right));
     const totalWidth = maxRight - minLeft;
-    const measureWidth = totalWidth / totalMeasures;
+    // 최소 간격 = 평균 마디 폭의 절반. 이보다 가까우면 같은 마디의 subpixel artifact 로 간주.
+    const avgMeasureWidth = totalWidth / totalMeasures;
+    const minGap = avgMeasureWidth * 0.5;
+
+    const measureXs: number[] = [xs[0].x];
+    for (let i = 1; i < xs.length; i++) {
+      if (xs[i].x - measureXs[measureXs.length - 1] >= minGap) {
+        measureXs.push(xs[i].x);
+      }
+    }
 
     const bounds: MeasureBound[] = [];
-    for (let i = 0; i < totalMeasures; i++) {
-      const x = minLeft + i * measureWidth;
+    for (let i = 0; i < measureXs.length; i++) {
+      const x = measureXs[i];
+      const nextX = i < measureXs.length - 1 ? measureXs[i + 1] : maxRight;
+      const width = nextX - x;
       const startTime = i * secPerMeasure;
-      bounds.push({ x, width: measureWidth, startTime, endTime: startTime + secPerMeasure });
+      bounds.push({ x, width, startTime, endTime: startTime + secPerMeasure });
     }
-    console.log("[ScoreViewer] bounds built:", bounds.length, "totalMeasures:", totalMeasures, "totalWidth:", totalWidth.toFixed(0), "measureWidth:", measureWidth.toFixed(1), "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2));
+    console.log(
+      "[ScoreViewer] bounds built:", bounds.length,
+      "sourceMeasures:", totalMeasures,
+      "firstWidth:", (bounds[0]?.width ?? 0).toFixed(1),
+      "avgWidth:", avgMeasureWidth.toFixed(1),
+      "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2),
+    );
     return bounds;
   }
 
@@ -251,15 +267,16 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     const x = m.x + progress * m.width;
     overlay.style.transform = `translateX(${x}px)`;
 
-    // 가로 스크롤 (경량)
+    // 가로 스크롤 (경량): smooth behavior 는 모바일에서 메인스레드 블록 유발 → 즉시 스크롤
     const viewport = viewportRef.current;
     if (viewport) {
       const relX = x - viewport.scrollLeft;
-      const leftThreshold = viewport.clientWidth * 0.2;
-      const rightThreshold = viewport.clientWidth * 0.8;
+      const leftThreshold = viewport.clientWidth * 0.15;
+      const rightThreshold = viewport.clientWidth * 0.85;
       if (relX < leftThreshold || relX > rightThreshold) {
         const target = Math.max(0, x - viewport.clientWidth * 0.3);
-        viewport.scrollTo({ left: target, behavior: "smooth" });
+        // scrollLeft 직접 대입 = instant, 모바일에서 훨씬 가벼움
+        viewport.scrollLeft = target;
       }
     }
   }, [cursorTime, status]);
