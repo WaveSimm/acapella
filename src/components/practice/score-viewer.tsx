@@ -132,16 +132,26 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tempoBpmVal = (osmd.Sheet as any).DefaultStartTempoInBpm ?? null;
         setStatus("ready");
-        // 마디 경계 프리컴퓨트 — rAF 한 번 기다려 DOM layout 확정 후
+        // 악보 렌더 완료 → 재생 버튼 활성화. 마디 경계는 best-effort로 rAF 이후 구축.
+        onReady?.({
+          title,
+          partNames,
+          tempoBpm: tempoBpmVal,
+          duration: null,
+          playable: true,
+        });
         requestAnimationFrame(() => {
-          measureBoundsRef.current = buildMeasureBounds();
-          onReady?.({
-            title,
-            partNames,
-            tempoBpm: tempoBpmVal,
-            duration: null,
-            playable: measureBoundsRef.current.length > 0,
-          });
+          const bounds = buildMeasureBounds();
+          measureBoundsRef.current = bounds;
+          if (bounds.length === 0) {
+            // 두 번째 시도 — 레이아웃 지연 대비
+            requestAnimationFrame(() => {
+              measureBoundsRef.current = buildMeasureBounds();
+              console.log("[ScoreViewer] measureBounds built:", measureBoundsRef.current.length);
+            });
+          } else {
+            console.log("[ScoreViewer] measureBounds built:", bounds.length);
+          }
         });
       } catch (e) {
         if (!cancelled) {
