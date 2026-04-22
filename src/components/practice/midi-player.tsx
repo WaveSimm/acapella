@@ -240,12 +240,26 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
     return () => { cancelled = true; };
   }, [status, src]);
 
-  // speed 속성
+  // 재생 속도 조절 — html-midi-player 는 speed 속성 미지원. 내부 Magenta Player.setTempo 로 직접 제어.
+  // 재생 중에도 Tone.Transport.bpm 에 반영되어 즉시 반영됨.
   useEffect(() => {
     const el = elRef.current;
-    if (!el || status !== "ready") return;
-    el.setAttribute("speed", String(SPEEDS[speedIdx]));
-  }, [speedIdx, status]);
+    if (!el || status !== "ready" || !duration) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const player = (el as any).player;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ns = (el as any).noteSequence;
+      const baseTempo = ns?.tempos?.[0]?.qpm ?? 120;
+      if (player && typeof player.setTempo === "function") {
+        player.setTempo(baseTempo * SPEEDS[speedIdx]);
+      } else {
+        el.setAttribute("speed", String(SPEEDS[speedIdx]));
+      }
+    } catch (e) {
+      console.warn("[MidiPlayer] setTempo failed:", e);
+    }
+  }, [speedIdx, status, duration]);
 
   const togglePlay = () => {
     const el = elRef.current;
