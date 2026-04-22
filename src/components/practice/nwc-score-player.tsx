@@ -56,7 +56,13 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
       <MidiPlayer
         src={midiSrc}
         onTimeUpdate={(t) => setCurrentTime(t)}
+        disabled={!info?.playable}
       />
+      {!info?.playable && (
+        <p className="text-center text-[11px] text-gray-400">
+          악보 데이터 준비 중... 잠시만 기다려주세요.
+        </p>
+      )}
     </div>
   );
 }

@@ -13,6 +13,7 @@ type ABMode = "off" | "setA" | "setB" | "active";
 interface Props {
   src: string;
   onTimeUpdate?: (time: number, duration: number, playing: boolean) => void;
+  disabled?: boolean;
 }
 
 let loadPromise: Promise<void> | null = null;
@@ -54,7 +55,7 @@ interface MidiEl extends HTMLElement {
   stop: () => void;
 }
 
-export function MidiPlayer({ src, onTimeUpdate }: Props) {
+export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     typeof window !== "undefined" && !!customElements.get("midi-player") ? "ready" : "loading",
   );
@@ -397,7 +398,7 @@ export function MidiPlayer({ src, onTimeUpdate }: Props) {
         <button onClick={() => skip(-5)} title="5초 뒤로" aria-label="5초 뒤로" className="rounded-full p-2 text-gray-500 hover:bg-gray-100">
           <svg className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2} viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0019 16V8a1 1 0 00-1.6-.8l-5.333 4zM4.066 11.2a1 1 0 000 1.6l5.334 4A1 1 0 0011 16V8a1 1 0 00-1.6-.8l-5.334 4z" /></svg>
         </button>
-        <button onClick={togglePlay} title={playing ? "일시정지" : "재생"} aria-label={playing ? "일시정지" : "재생"} className="rounded-full bg-blue-600 p-3 text-white shadow hover:bg-blue-700">
+        <button onClick={togglePlay} disabled={!!disabled} title={disabled ? "악보 로딩 중..." : playing ? "일시정지" : "재생"} aria-label={playing ? "일시정지" : "재생"} className="rounded-full bg-blue-600 p-3 text-white shadow hover:bg-blue-700 disabled:bg-gray-300 disabled:cursor-not-allowed">
           {playing ? (
             <svg className="h-6 w-6" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z" /></svg>
           ) : (

@@ -5,7 +5,6 @@ import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
 
 interface Props {
   src: string;
-  /** 파트 이름 (예: "Sop"). null이면 전체. 선택 시 해당 스태프만 표시 */
   highlightPart?: string | null;
   /** 재생 현재 시간 (초) */
   cursorTime?: number | null;
@@ -21,18 +20,72 @@ export interface ScoreInfo {
   partNames: string[];
   tempoBpm: number | null;
   duration: number | null;
+  /** 커서 맵 프리컴퓨트까지 완료 여부 — false면 play 비활성 */
+  playable: boolean;
 }
 
 const DEFAULT_ZOOM = 0.5;
 
+interface MeasureBound {
+  x: number;       // mount 기준 좌측 X (px)
+  width: number;   // 마디 폭 (px)
+  startTime: number; // 초
+  endTime: number;   // 초
+}
+
 export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, onReady }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
+  const cursorOverlayRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
+  const measureBoundsRef = useRef<MeasureBound[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errMsg, setErrMsg] = useState("");
 
-  // 1) 최초 로드 + 단일 horizontal line 렌더
+  // 마디 경계 프리컴퓨트: 각 마디의 X좌표·폭·시간 범위를 DOM에서 1회 측정
+  function buildMeasureBounds() {
+    const mount = mountRef.current;
+    const osmd = osmdRef.current;
+    if (!mount || !osmd) return [];
+    const instruments = osmd.Sheet.Instruments ?? [];
+    const numInst = Math.max(1, instruments.length);
+    const staves = mount.querySelectorAll<SVGGraphicsElement>("g.vf-stave");
+    const mountRect = mount.getBoundingClientRect();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const bpm = (osmd.Sheet as any).DefaultStartTempoInBpm ?? tempoBpm ?? 120;
+    // 시간당 길이: 1 quarter note = 60/bpm 초. Measure sec 는 MusicXML beats/beat-type 로 계산.
+    // 기본값 4/4 기준으로 가정 — 필요 시 OSMD에서 추출 (TS 타입 없어 any 경유).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const ts = (osmd.Sheet?.SourceMeasures?.[0] as any)?.ActiveTimeSignature;
+    let tsNum = 4, tsDen = 4;
+    if (ts) {
+      tsNum = ts.Numerator ?? ts.numerator ?? 4;
+      tsDen = ts.Denominator ?? ts.denominator ?? 4;
+    }
+    // 예: 2/2 → 1 measure = 1 whole note = 240/bpm 초
+    const secPerMeasure = (tsNum / tsDen) * 240 / bpm;
+
+    const bounds: MeasureBound[] = [];
+    const step = numInst; // 매 numInst 개마다 다음 마디
+    for (let i = 0; i < staves.length; i += step) {
+      const el = staves[i];
+      if (!el) continue;
+      const r = el.getBoundingClientRect();
+      const x = r.left - mountRect.left + (mount.scrollLeft || 0);
+      const w = r.width;
+      const measureIdx = bounds.length;
+      const startTime = measureIdx * secPerMeasure;
+      bounds.push({
+        x,
+        width: w,
+        startTime,
+        endTime: startTime + secPerMeasure,
+      });
+    }
+    return bounds;
+  }
+
+  // 1) 로드 + 렌더 + 마디 바운드 구축
   useEffect(() => {
     if (!mountRef.current) return;
     let cancelled = false;
@@ -42,7 +95,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         const mod = await import("opensheetmusicdisplay");
         if (cancelled) return;
         const osmd = new mod.OpenSheetMusicDisplay(mountRef.current!, {
-          autoResize: false, // 가로 폭을 고정하지 않고 길게 (우리가 수동 관리)
+          autoResize: false,
           drawingParameters: "compact",
           drawPartNames: true,
           drawMeasureNumbers: true,
@@ -50,7 +103,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           followCursor: false,
         });
         osmdRef.current = osmd;
-        // 모든 마디를 한 줄로 (줄 바꿈 없음).
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const rules = (osmd as any).EngravingRules ?? (osmd as any).rules;
         if (rules) {
@@ -58,7 +110,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
           if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
         }
-        // 캐시 버스트: 업로드 직후 stale 캐시 방지
         const sep = src.includes("?") ? "&" : "?";
         const res = await fetch(`${src}${sep}t=${Date.now()}`, { cache: "no-cache" });
         if (!res.ok) throw new Error(`악보 로딩 실패 (HTTP ${res.status})`);
@@ -81,7 +132,17 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const tempoBpmVal = (osmd.Sheet as any).DefaultStartTempoInBpm ?? null;
         setStatus("ready");
-        onReady?.({ title, partNames, tempoBpm: tempoBpmVal, duration: null });
+        // 마디 경계 프리컴퓨트 — rAF 한 번 기다려 DOM layout 확정 후
+        requestAnimationFrame(() => {
+          measureBoundsRef.current = buildMeasureBounds();
+          onReady?.({
+            title,
+            partNames,
+            tempoBpm: tempoBpmVal,
+            duration: null,
+            playable: measureBoundsRef.current.length > 0,
+          });
+        });
       } catch (e) {
         if (!cancelled) {
           setErrMsg(e instanceof Error ? e.message : String(e));
@@ -92,10 +153,11 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     return () => {
       cancelled = true;
     };
-  }, [src, onReady, zoom]);
+    // buildMeasureBounds는 function이라 deps에 안 넣어도 안전
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [src, zoom]);
 
-  // 2) 파트 선택 → Instrument.Visible + 재렌더 (완전 숨김)
-  //    재생 중이면 짧은 오디오 공백은 감수 (1회 끊김이 반복 끊김보다 UX 나음).
+  // 2) 파트 선택 → Instrument.Visible + 재렌더 + 마디 바운드 재구축
   useEffect(() => {
     if (status !== "ready" || !osmdRef.current) return;
     const osmd = osmdRef.current;
@@ -109,10 +171,18 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       }
     });
     if (!changed) return;
-    try { osmd.render(); } catch (e) { console.warn("[ScoreViewer] render error:", e); }
+    try {
+      osmd.render();
+      requestAnimationFrame(() => {
+        measureBoundsRef.current = buildMeasureBounds();
+      });
+    } catch (e) {
+      console.warn("[ScoreViewer] render error:", e);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightPart, status]);
 
-  // 3) zoom 변경 시 재렌더
+  // 3) zoom 변경 시 재렌더 + 마디 바운드 재구축
   useEffect(() => {
     if (status !== "ready" || !osmdRef.current) return;
     const osmd = osmdRef.current;
@@ -121,76 +191,45 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (osmd as any).zoom = zoom;
       osmd.render();
+      requestAnimationFrame(() => {
+        measureBoundsRef.current = buildMeasureBounds();
+      });
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom, status]);
 
-  // 4) 커서 이동 + 가로 스크롤
+  // 4) 커서 이동 — 프리컴퓨트된 마디 바운드 + CSS transform만 사용. OSMD 상호작용 없음.
   useEffect(() => {
-    if (status !== "ready" || !osmdRef.current || cursorTime == null) return;
-    const osmd = osmdRef.current;
-    const bpm = tempoBpm && tempoBpm > 0 ? tempoBpm : 120;
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const cursor = osmd.cursor as any;
-      if (!cursor) return;
-      cursor.show();
+    if (status !== "ready" || cursorTime == null) return;
+    const bounds = measureBoundsRef.current;
+    const overlay = cursorOverlayRef.current;
+    if (bounds.length === 0 || !overlay) return;
 
-      const targetWhole = (cursorTime * bpm) / 240;
-      const getCurrent = (): number => {
-        const ts = cursor.Iterator?.currentTimeStamp;
-        if (!ts) return 0;
-        // OSMD Fraction = WholeValue + Numerator/Denominator. RealValue getter가 있으면 우선 사용.
-        if (typeof ts.RealValue === "number") return ts.RealValue;
-        const whole = typeof ts.WholeValue === "number" ? ts.WholeValue : 0;
-        const num = typeof ts.Numerator === "number" ? ts.Numerator : 0;
-        const den = typeof ts.Denominator === "number" ? ts.Denominator : 1;
-        return whole + num / den;
-      };
-      let curr = getCurrent();
-      if (targetWhole < curr - 0.001) {
-        cursor.reset();
-        curr = getCurrent();
-      }
-      let safety = 10000;
-      while (curr < targetWhole && safety-- > 0) {
-        if (cursor.Iterator?.EndReached) break;
-        cursor.next();
-        curr = getCurrent();
-      }
-      try { cursor.update?.(); } catch { /* noop */ }
-
-      scrollCursorIntoView();
-    } catch (e) {
-      console.warn("[ScoreViewer] cursor sync error:", e);
+    // binary search로 cursorTime 이 속한 마디 찾기
+    let lo = 0, hi = bounds.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi + 1) >> 1;
+      if (bounds[mid].startTime <= cursorTime) lo = mid;
+      else hi = mid - 1;
     }
-  }, [cursorTime, tempoBpm, status]);
+    const m = bounds[lo];
+    if (!m) return;
+    const progress = Math.max(0, Math.min(1, (cursorTime - m.startTime) / (m.endTime - m.startTime)));
+    const x = m.x + progress * m.width;
+    overlay.style.transform = `translateX(${x}px)`;
 
-  // 커서가 뷰포트 중앙 좌측 (30%) 지점에 오도록 가로 스크롤
-  function scrollCursorIntoView() {
-    const osmd = osmdRef.current;
+    // 가로 스크롤 (경량)
     const viewport = viewportRef.current;
-    if (!osmd || !viewport) return;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const cursor = osmd.cursor as any;
-    const cursorEl: HTMLElement | undefined = cursor?.cursorElement;
-    if (!cursorEl) return;
-    const cursorRect = cursorEl.getBoundingClientRect();
-    if (cursorRect.height === 0 && cursorRect.width === 0) return;
-    const viewportRect = viewport.getBoundingClientRect();
-    const cursorXInContent = cursorRect.left - viewportRect.left + viewport.scrollLeft;
-
-    // 커서가 뷰포트 가시 영역의 20%~80% 범위 밖으로 벗어났을 때만 스크롤
-    const relativeX = cursorXInContent - viewport.scrollLeft;
-    const leftThreshold = viewportRect.width * 0.2;
-    const rightThreshold = viewportRect.width * 0.8;
-    if (relativeX >= leftThreshold && relativeX <= rightThreshold) return;
-
-    // 커서를 좌측 30% 위치에 배치
-    const targetScroll = Math.max(0, cursorXInContent - viewportRect.width * 0.3);
-    if (Math.abs(viewport.scrollLeft - targetScroll) > 10) {
-      viewport.scrollTo({ left: targetScroll, behavior: "smooth" });
+    if (viewport) {
+      const relX = x - viewport.scrollLeft;
+      const leftThreshold = viewport.clientWidth * 0.2;
+      const rightThreshold = viewport.clientWidth * 0.8;
+      if (relX < leftThreshold || relX > rightThreshold) {
+        const target = Math.max(0, x - viewport.clientWidth * 0.3);
+        viewport.scrollTo({ left: target, behavior: "smooth" });
+      }
     }
-  }
+  }, [cursorTime, status]);
 
   if (status === "error") {
     return (
@@ -210,7 +249,14 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         ref={viewportRef}
         className="relative w-full overflow-x-auto overflow-y-hidden"
       >
-        <div ref={mountRef} className="inline-block" style={{ minWidth: "100%" }} />
+        <div ref={mountRef} className="relative inline-block" style={{ minWidth: "100%" }} />
+        {/* 커스텀 커서 — OSMD 내장 커서 대신 가벼운 overlay 사용 */}
+        <div
+          ref={cursorOverlayRef}
+          aria-hidden="true"
+          className="pointer-events-none absolute top-0 left-0 bottom-0 w-0.5 bg-emerald-500/70"
+          style={{ transform: "translateX(-10px)", willChange: "transform" }}
+        />
       </div>
     </div>
   );
