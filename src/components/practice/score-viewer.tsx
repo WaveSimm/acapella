@@ -42,6 +42,14 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errMsg, setErrMsg] = useState("");
 
+  // bounds 가 준비되면 overlay 를 즉시 첫 마디 시작점에 배치해 재생 시작 점프 방지
+  function positionCursorAtStart() {
+    const overlay = cursorOverlayRef.current;
+    const bounds = measureBoundsRef.current;
+    if (!overlay || bounds.length === 0) return;
+    overlay.style.transform = `translateX(${bounds[0].x}px)`;
+  }
+
   // 마디 경계 프리컴퓨트: OSMD GraphicalMeasures 에서 정확한 각 마디 X/width 추출
   function buildMeasureBounds() {
     const mount = mountRef.current;
@@ -187,15 +195,18 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           playable: true,
         });
         requestAnimationFrame(() => {
-          const bounds = buildMeasureBounds();
-          measureBoundsRef.current = bounds;
+          let bounds = buildMeasureBounds();
           if (bounds.length === 0) {
             // 두 번째 시도 — 레이아웃 지연 대비
             requestAnimationFrame(() => {
-              measureBoundsRef.current = buildMeasureBounds();
-              console.log("[ScoreViewer] measureBounds built:", measureBoundsRef.current.length);
+              bounds = buildMeasureBounds();
+              measureBoundsRef.current = bounds;
+              positionCursorAtStart();
+              console.log("[ScoreViewer] measureBounds built:", bounds.length);
             });
           } else {
+            measureBoundsRef.current = bounds;
+            positionCursorAtStart();
             console.log("[ScoreViewer] measureBounds built:", bounds.length);
           }
         });
@@ -317,7 +328,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           ref={cursorOverlayRef}
           aria-hidden="true"
           className="pointer-events-none absolute top-0 left-0 bottom-0 w-0.5 bg-emerald-500/70"
-          style={{ transform: "translateX(-10px)", willChange: "transform" }}
+          style={{ transform: "translateX(-100px)", willChange: "transform" }}
         />
       </div>
     </div>
