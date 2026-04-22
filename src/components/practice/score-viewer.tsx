@@ -69,14 +69,17 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     const bounds: MeasureBound[] = [];
 
     if (pages && pages.length > 0) {
-      // 모든 system의 모든 measure를 순회
+      // GraphicalMeasures 구조는 [measureIdx][staffIdx]. outer를 순회해 각 마디의 첫 스태프 좌표 사용.
       for (const page of pages) {
         for (const system of page.MusicSystems ?? []) {
-          // 첫 번째 (보이는) 스태프의 마디들만 (모든 스태프가 동일 X)
-          const staffMeasures = (system.GraphicalMeasures ?? [])[0] ?? [];
-          for (const gm of staffMeasures) {
-            if (!gm?.PositionAndShape) continue;
-            // SVG 요소를 통해 실제 px 좌표 얻기 (unit-to-px 변환 우회)
+          const measureRows = system.GraphicalMeasures ?? [];
+          for (const row of measureRows) {
+            // 가시 스태프 우선으로 첫 유효 GraphicalMeasure 찾기
+            let gm = null;
+            for (const candidate of row ?? []) {
+              if (candidate?.PositionAndShape) { gm = candidate; break; }
+            }
+            if (!gm) continue;
             const svgEl: SVGGraphicsElement | undefined = gm.Stave?.attrs?.elem || gm.Stave?.element;
             let x = 0, w = 0;
             if (svgEl && typeof svgEl.getBoundingClientRect === "function") {
@@ -84,8 +87,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
               x = r.left - mountRect.left;
               w = r.width;
             } else {
-              // Fallback: PositionAndShape 를 현재 줌으로 변환
-              const unitToPx = 10; // OSMD 기본 — 정확치 않으면 실제 스케일 유추 필요
+              const unitToPx = 10;
               x = gm.PositionAndShape.AbsolutePosition.x * unitToPx;
               w = gm.PositionAndShape.Size.width * unitToPx;
             }
