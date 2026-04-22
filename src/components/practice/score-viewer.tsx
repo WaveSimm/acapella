@@ -266,16 +266,26 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
   }, [zoom, status]);
 
   // 4) 커서 이동 — 프리컴퓨트된 마디 바운드 + CSS transform만 사용. OSMD 상호작용 없음.
+  const prevCursorTimeRef = useRef(0);
   useEffect(() => {
     if (status !== "ready" || cursorTime == null) return;
     let bounds = measureBoundsRef.current;
-    // 아직 빌드 안됐으면 즉석에서 재시도 (유저가 play 눌렀을 때 복구)
     if (bounds.length === 0) {
       bounds = buildMeasureBounds();
       measureBoundsRef.current = bounds;
     }
     const overlay = cursorOverlayRef.current;
     if (bounds.length === 0 || !overlay) return;
+
+    // 모바일 AudioContext 워밍업으로 인한 첫 업데이트 점프 필터.
+    // prev ~ 0 이고 현재 시간 > 1s 면 Transport가 앞서간 것으로 간주 → 0으로 초기화만
+    const prev = prevCursorTimeRef.current;
+    if (prev < 0.1 && cursorTime > 1) {
+      prevCursorTimeRef.current = cursorTime;
+      overlay.style.transform = `translateX(${bounds[0].x}px)`;
+      return;
+    }
+    prevCursorTimeRef.current = cursorTime;
 
     // binary search로 cursorTime 이 속한 마디 찾기
     let lo = 0, hi = bounds.length - 1;
