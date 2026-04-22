@@ -71,26 +71,35 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     }
     const secPerMeasure = (tsNum / tsDen) * 240 / bpm;
 
-    // OSMD가 마디당 여러 vf-stave 를 만들기도 함. X좌표로 고유 마디만 추출.
-    const xMap = new Map<number, { x: number; width: number }>();
+    // DOM 내 stave 노드는 OSMD 내부 rendering 단위로 쪼개져 있어 마디 수와 1:1 매칭 어려움.
+    // 대신 전체 SVG 폭을 OSMD 소스 마디 수로 균등 분할 (single horizontal line 이므로 타당).
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const totalMeasures = (osmd.Sheet?.SourceMeasures?.length as number) ?? 1;
+
+    // 렌더된 SVG 의 전체 폭 — stave들의 min left ~ max right 계산
+    let minLeft = Infinity, maxRight = -Infinity;
     for (const el of Array.from(staves)) {
       const r = el.getBoundingClientRect();
       if (r.width <= 0) continue;
-      const x = Math.round(r.left - mountRect.left);
-      const key = Math.round(x / 4) * 4; // 4px 이내는 같은 마디로 취급
-      if (!xMap.has(key)) xMap.set(key, { x, width: r.width });
+      const left = r.left - mountRect.left;
+      const right = left + r.width;
+      if (left < minLeft) minLeft = left;
+      if (right > maxRight) maxRight = right;
     }
-    const sortedX = Array.from(xMap.values()).sort((a, b) => a.x - b.x);
+    if (!isFinite(minLeft) || !isFinite(maxRight) || totalMeasures < 1) {
+      console.warn("[ScoreViewer] bounds: insufficient stave data");
+      return [];
+    }
+    const totalWidth = maxRight - minLeft;
+    const measureWidth = totalWidth / totalMeasures;
 
     const bounds: MeasureBound[] = [];
-    for (let i = 0; i < sortedX.length; i++) {
-      const { x, width } = sortedX[i];
-      // 다음 마디 X 까지의 간격을 실제 폭으로 사용 (마지막은 stave 자체 width)
-      const effectiveWidth = i < sortedX.length - 1 ? sortedX[i + 1].x - x : width;
+    for (let i = 0; i < totalMeasures; i++) {
+      const x = minLeft + i * measureWidth;
       const startTime = i * secPerMeasure;
-      bounds.push({ x, width: effectiveWidth, startTime, endTime: startTime + secPerMeasure });
+      bounds.push({ x, width: measureWidth, startTime, endTime: startTime + secPerMeasure });
     }
-    console.log("[ScoreViewer] bounds built:", bounds.length, "stavesTotal:", staves.length, "uniqueMeasures:", sortedX.length, "numInst:", numInst, "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2));
+    console.log("[ScoreViewer] bounds built:", bounds.length, "totalMeasures:", totalMeasures, "totalWidth:", totalWidth.toFixed(0), "measureWidth:", measureWidth.toFixed(1), "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2));
     return bounds;
   }
 
