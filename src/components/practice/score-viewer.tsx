@@ -48,40 +48,43 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     const osmd = osmdRef.current;
     if (!mount || !osmd) return [];
     const instruments = osmd.Sheet.Instruments ?? [];
-    const numInst = Math.max(1, instruments.length);
-    const staves = mount.querySelectorAll<SVGGraphicsElement>("g.vf-stave");
+    const numInst = Math.max(1, instruments.filter((i) => i.Visible).length);
+    // 다양한 셀렉터 fallback — OSMD 버전별 DOM 구조 차이 대응
+    let staves: NodeListOf<SVGGraphicsElement> = mount.querySelectorAll<SVGGraphicsElement>("g.vf-stave");
+    if (staves.length === 0) staves = mount.querySelectorAll<SVGGraphicsElement>("g.staffline g.vf-stave");
+    if (staves.length === 0) staves = mount.querySelectorAll<SVGGraphicsElement>("[class*='stave']");
+    if (staves.length === 0) {
+      console.warn("[ScoreViewer] no stave elements found");
+      return [];
+    }
     const mountRect = mount.getBoundingClientRect();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bpm = (osmd.Sheet as any).DefaultStartTempoInBpm ?? tempoBpm ?? 120;
-    // 시간당 길이: 1 quarter note = 60/bpm 초. Measure sec 는 MusicXML beats/beat-type 로 계산.
-    // 기본값 4/4 기준으로 가정 — 필요 시 OSMD에서 추출 (TS 타입 없어 any 경유).
+    // TimeSig 추출 — OSMD 내부 API 변경 대비 여러 경로 시도
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const ts = (osmd.Sheet?.SourceMeasures?.[0] as any)?.ActiveTimeSignature;
+    const sm = osmd.Sheet?.SourceMeasures?.[0] as any;
+    const ts = sm?.ActiveTimeSignature ?? sm?.activeTimeSignature ?? sm?.Rhythm;
     let tsNum = 4, tsDen = 4;
     if (ts) {
-      tsNum = ts.Numerator ?? ts.numerator ?? 4;
-      tsDen = ts.Denominator ?? ts.denominator ?? 4;
+      tsNum = ts.Numerator ?? ts.numerator ?? ts.RealValue?.Numerator ?? 4;
+      tsDen = ts.Denominator ?? ts.denominator ?? ts.RealValue?.Denominator ?? 4;
     }
-    // 예: 2/2 → 1 measure = 1 whole note = 240/bpm 초
     const secPerMeasure = (tsNum / tsDen) * 240 / bpm;
 
     const bounds: MeasureBound[] = [];
-    const step = numInst; // 매 numInst 개마다 다음 마디
+    const step = numInst;
     for (let i = 0; i < staves.length; i += step) {
       const el = staves[i];
       if (!el) continue;
       const r = el.getBoundingClientRect();
-      const x = r.left - mountRect.left + (mount.scrollLeft || 0);
+      if (r.width <= 0) continue;
+      const x = r.left - mountRect.left;
       const w = r.width;
       const measureIdx = bounds.length;
       const startTime = measureIdx * secPerMeasure;
-      bounds.push({
-        x,
-        width: w,
-        startTime,
-        endTime: startTime + secPerMeasure,
-      });
+      bounds.push({ x, width: w, startTime, endTime: startTime + secPerMeasure });
     }
+    console.log("[ScoreViewer] bounds built:", bounds.length, "staves:", staves.length, "numInst:", numInst, "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2));
     return bounds;
   }
 
@@ -211,7 +214,12 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
   // 4) 커서 이동 — 프리컴퓨트된 마디 바운드 + CSS transform만 사용. OSMD 상호작용 없음.
   useEffect(() => {
     if (status !== "ready" || cursorTime == null) return;
-    const bounds = measureBoundsRef.current;
+    let bounds = measureBoundsRef.current;
+    // 아직 빌드 안됐으면 즉석에서 재시도 (유저가 play 눌렀을 때 복구)
+    if (bounds.length === 0) {
+      bounds = buildMeasureBounds();
+      measureBoundsRef.current = bounds;
+    }
     const overlay = cursorOverlayRef.current;
     if (bounds.length === 0 || !overlay) return;
 
