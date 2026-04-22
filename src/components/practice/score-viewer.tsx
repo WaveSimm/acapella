@@ -71,20 +71,26 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     }
     const secPerMeasure = (tsNum / tsDen) * 240 / bpm;
 
-    const bounds: MeasureBound[] = [];
-    const step = numInst;
-    for (let i = 0; i < staves.length; i += step) {
-      const el = staves[i];
-      if (!el) continue;
+    // OSMD가 마디당 여러 vf-stave 를 만들기도 함. X좌표로 고유 마디만 추출.
+    const xMap = new Map<number, { x: number; width: number }>();
+    for (const el of Array.from(staves)) {
       const r = el.getBoundingClientRect();
       if (r.width <= 0) continue;
-      const x = r.left - mountRect.left;
-      const w = r.width;
-      const measureIdx = bounds.length;
-      const startTime = measureIdx * secPerMeasure;
-      bounds.push({ x, width: w, startTime, endTime: startTime + secPerMeasure });
+      const x = Math.round(r.left - mountRect.left);
+      const key = Math.round(x / 4) * 4; // 4px 이내는 같은 마디로 취급
+      if (!xMap.has(key)) xMap.set(key, { x, width: r.width });
     }
-    console.log("[ScoreViewer] bounds built:", bounds.length, "staves:", staves.length, "numInst:", numInst, "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2));
+    const sortedX = Array.from(xMap.values()).sort((a, b) => a.x - b.x);
+
+    const bounds: MeasureBound[] = [];
+    for (let i = 0; i < sortedX.length; i++) {
+      const { x, width } = sortedX[i];
+      // 다음 마디 X 까지의 간격을 실제 폭으로 사용 (마지막은 stave 자체 width)
+      const effectiveWidth = i < sortedX.length - 1 ? sortedX[i + 1].x - x : width;
+      const startTime = i * secPerMeasure;
+      bounds.push({ x, width: effectiveWidth, startTime, endTime: startTime + secPerMeasure });
+    }
+    console.log("[ScoreViewer] bounds built:", bounds.length, "stavesTotal:", staves.length, "uniqueMeasures:", sortedX.length, "numInst:", numInst, "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2));
     return bounds;
   }
 
