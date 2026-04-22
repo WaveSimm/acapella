@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { MidiPlayer } from "./midi-player";
 import { ScoreViewer, type ScoreInfo } from "./score-viewer";
 
@@ -9,10 +9,36 @@ interface Props {
   musicXmlSrc: string;
 }
 
+const DEFAULT_MEASURE_WIDTH = 20;
+const MIN_MW = 8;
+const MAX_MW = 60;
+
+function storageKey(src: string): string {
+  return `acapella:measureWidth:${src}`;
+}
+
 export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
   const [currentTime, setCurrentTime] = useState(0);
   const [info, setInfo] = useState<ScoreInfo | null>(null);
   const [highlightPart, setHighlightPart] = useState<string | null>(null);
+  const [measureWidth, setMeasureWidth] = useState<number>(DEFAULT_MEASURE_WIDTH);
+
+  // 곡별 마디 폭 저장/복원 — localStorage 키 = musicXmlSrc
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const saved = window.localStorage.getItem(storageKey(musicXmlSrc));
+    if (saved) {
+      const v = parseInt(saved, 10);
+      if (!isNaN(v) && v >= MIN_MW && v <= MAX_MW) setMeasureWidth(v);
+    }
+  }, [musicXmlSrc]);
+
+  const handleMeasureWidth = (v: number) => {
+    setMeasureWidth(v);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(storageKey(musicXmlSrc), String(v));
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -45,11 +71,27 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
         </div>
       )}
 
+      <div className="flex items-center gap-3 text-xs text-gray-500">
+        <label htmlFor="mw" className="shrink-0">마디 폭</label>
+        <input
+          id="mw"
+          type="range"
+          min={MIN_MW}
+          max={MAX_MW}
+          step={1}
+          value={measureWidth}
+          onChange={(e) => handleMeasureWidth(parseInt(e.target.value, 10))}
+          className="flex-1"
+        />
+        <span className="w-8 shrink-0 text-right tabular-nums text-gray-700">{measureWidth}</span>
+      </div>
+
       <ScoreViewer
         src={musicXmlSrc}
         highlightPart={highlightPart}
         cursorTime={currentTime}
         tempoBpm={info?.tempoBpm ?? undefined}
+        measureWidth={measureWidth}
         onReady={setInfo}
       />
 

@@ -12,6 +12,8 @@ interface Props {
   tempoBpm?: number;
   /** OSMD 줌 배율 (기본 0.5) */
   zoom?: number;
+  /** 마디 폭 (OSMD 단위). 지정 시 FixedMeasureWidth=true로 강제 균등. */
+  measureWidth?: number;
   onReady?: (info: ScoreInfo) => void;
 }
 
@@ -33,7 +35,7 @@ interface MeasureBound {
   endTime: number;   // 초
 }
 
-export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, onReady }: Props) {
+export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, measureWidth, onReady }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const cursorOverlayRef = useRef<HTMLDivElement>(null);
@@ -154,8 +156,13 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           rules.RenderSingleHorizontalStaffline = true;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
           if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
-          // 마디 내부 노트는 OSMD 기본 duration-proportional 배치로 유지.
-          // 마디 폭은 각각 다르지만 GraphicalMeasures API에서 실제 X좌표를 가져와 커서 계산에 사용.
+          // measureWidth 가 주어지면 FixedMeasureWidth 활성 — 모든 마디 동일 폭
+          if (typeof measureWidth === "number" && measureWidth > 0) {
+            if ("FixedMeasureWidth" in rules) rules.FixedMeasureWidth = true;
+            if ("FixedMeasureWidthFixedValue" in rules) rules.FixedMeasureWidthFixedValue = measureWidth;
+          } else {
+            if ("FixedMeasureWidth" in rules) rules.FixedMeasureWidth = false;
+          }
         }
         const sep = src.includes("?") ? "&" : "?";
         const res = await fetch(`${src}${sep}t=${Date.now()}`, { cache: "no-cache" });
@@ -242,21 +249,32 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [highlightPart, status]);
 
-  // 3) zoom 변경 시 재렌더 + 마디 바운드 재구축
+  // 3) zoom 또는 measureWidth 변경 시 재렌더 + 바운드 재구축
   useEffect(() => {
     if (status !== "ready" || !osmdRef.current) return;
     const osmd = osmdRef.current;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const rules = (osmd as any).EngravingRules ?? (osmd as any).rules;
+    if (rules) {
+      if (typeof measureWidth === "number" && measureWidth > 0) {
+        rules.FixedMeasureWidth = true;
+        rules.FixedMeasureWidthFixedValue = measureWidth;
+      } else {
+        rules.FixedMeasureWidth = false;
+      }
+    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((osmd as any).zoom !== zoom) {
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (osmd as any).zoom = zoom;
-      osmd.render();
-      requestAnimationFrame(() => {
-        measureBoundsRef.current = buildMeasureBounds();
-      });
     }
+    osmd.render();
+    requestAnimationFrame(() => {
+      measureBoundsRef.current = buildMeasureBounds();
+      positionCursorAtStart();
+    });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, status]);
+  }, [zoom, measureWidth, status]);
 
   // 4) 커서 이동 — 프리컴퓨트된 마디 바운드 + CSS transform만 사용. OSMD 상호작용 없음.
   const prevCursorTimeRef = useRef(0);
