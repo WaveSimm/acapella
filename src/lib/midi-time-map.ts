@@ -79,9 +79,6 @@ export async function getFirstNoteTime(url: string, partName?: string | null): P
   const norm = (s: string | undefined | null) => (s ?? "").trim().toLowerCase();
   const target = norm(partName);
 
-  const trackNames = midi.tracks.map((t) => t.name);
-  console.log("[getFirstNoteTime] tracks:", trackNames, "target:", partName);
-
   const findByName = (name: string): number | null => {
     for (const track of midi.tracks) {
       if (norm(track.name) !== name) continue;
@@ -93,19 +90,12 @@ export async function getFirstNoteTime(url: string, partName?: string | null): P
 
   if (target) {
     const t = findByName(target);
-    if (t !== null) {
-      console.log("[getFirstNoteTime] matched partName →", t.toFixed(2));
-      return t;
-    }
-    console.log("[getFirstNoteTime] partName match failed");
+    if (t !== null) return t;
   }
 
-  // Alto 우선
+  // Alto 우선 (choir 연습 기본 타깃)
   const alto = findByName("alto");
-  if (alto !== null) {
-    console.log("[getFirstNoteTime] alto default →", alto.toFixed(2));
-    return alto;
-  }
+  if (alto !== null) return alto;
 
   // 전 트랙 earliest fallback
   let earliest = Infinity;
@@ -113,7 +103,5 @@ export async function getFirstNoteTime(url: string, partName?: string | null): P
     const firstNote = track.notes[0];
     if (firstNote && firstNote.time < earliest) earliest = firstNote.time;
   }
-  if (!isFinite(earliest)) return null;
-  console.log("[getFirstNoteTime] earliest across all tracks →", earliest.toFixed(2));
-  return earliest;
+  return isFinite(earliest) ? earliest : null;
 }

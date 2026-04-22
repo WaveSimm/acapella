@@ -101,7 +101,8 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
             x = r.left - mountRect.left;
             w = r.width;
           } else {
-            const unitToPx = 10;
+            // PositionAndShape 는 OSMD 내부 단위 — zoom 반영 필요
+            const unitToPx = 10 * zoom;
             x = gm.PositionAndShape.AbsolutePosition.x * unitToPx;
             w = gm.PositionAndShape.Size.width * unitToPx;
           }
@@ -135,7 +136,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       }
     }
 
-    console.log("[ScoreViewer] bounds built:", bounds.length, "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2), "firstWidth:", (bounds[0]?.width ?? 0).toFixed(1), "firstX:", (bounds[0]?.x ?? 0).toFixed(1));
     return bounds;
   }
 
@@ -209,12 +209,10 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
               bounds = buildMeasureBounds();
               measureBoundsRef.current = bounds;
               positionCursorAtStart();
-              console.log("[ScoreViewer] measureBounds built:", bounds.length);
             });
           } else {
             measureBoundsRef.current = bounds;
             positionCursorAtStart();
-            console.log("[ScoreViewer] measureBounds built:", bounds.length);
           }
         });
       } catch (e) {
@@ -291,7 +289,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       .then((times) => {
         if (cancelled) return;
         measureTimesRef.current = times;
-        console.log("[ScoreViewer] measureTimes loaded:", times.length, "firstEnd:", times[0]?.endTime.toFixed(2));
       })
       .catch((e) => console.warn("[ScoreViewer] measureTimes load failed:", e));
     return () => { cancelled = true; };
@@ -305,7 +302,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       .then((t) => {
         if (cancelled) return;
         firstNoteTimeRef.current = t ?? 0;
-        console.log("[ScoreViewer] firstNoteTime:", t?.toFixed(2), "part:", highlightPart ?? "(any)");
       })
       .catch((e) => console.warn("[ScoreViewer] firstNoteTime load failed:", e));
     return () => { cancelled = true; };
@@ -367,8 +363,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       const leftThreshold = viewport.clientWidth * 0.15;
       const rightThreshold = viewport.clientWidth * 0.85;
       if (relX < leftThreshold || relX > rightThreshold) {
-        const target = Math.max(0, x - viewport.clientWidth * 0.3);
-        viewport.scrollLeft = target;
+        viewport.scrollLeft = Math.max(0, x - viewport.clientWidth * 0.3);
       }
     }
   }, [cursorTime, status, isPlaying]);
