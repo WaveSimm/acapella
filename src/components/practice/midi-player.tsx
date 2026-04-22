@@ -14,6 +14,10 @@ interface Props {
   src: string;
   onTimeUpdate?: (time: number, duration: number, playing: boolean) => void;
   disabled?: boolean;
+  /** 선택된 파트 (크게 재생). null → 전체 균등 */
+  mixPart?: string | null;
+  /** 파트 이름 배열 (MIDI 트랙 순서와 일치 가정) */
+  partNames?: string[];
 }
 
 let loadPromise: Promise<void> | null = null;
@@ -55,7 +59,7 @@ interface MidiEl extends HTMLElement {
   stop: () => void;
 }
 
-export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
+export function MidiPlayer({ src, onTimeUpdate, disabled, mixPart, partNames }: Props) {
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     typeof window !== "undefined" && !!customElements.get("midi-player") ? "ready" : "loading",
   );
@@ -239,6 +243,33 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
     tryPreload();
     return () => { cancelled = true; };
   }, [status, src]);
+
+  // 파트 믹서 — 선택 파트는 원래 velocity 유지, 나머지는 작게.
+  // 재생 중 변경은 반영 안 함 (정지 중에만 적용). 다음 start() 호출 시 수정된 noteSequence 사용.
+  useEffect(() => {
+    if (playing) return; // 재생 중엔 변경 안 함
+    const el = elRef.current;
+    if (!el || status !== "ready" || !duration) return;
+    try {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const ns = (el as any).noteSequence;
+      if (!ns?.notes || !Array.isArray(ns.notes)) return;
+      const selectedIdx = mixPart && partNames ? partNames.indexOf(mixPart) : -1;
+      const SOFT = 0.3;
+      for (const note of ns.notes) {
+        const n = note as { velocity: number; instrument: number; _origVel?: number };
+        if (n._origVel === undefined) n._origVel = n.velocity;
+        const orig = n._origVel;
+        if (selectedIdx < 0 || n.instrument === selectedIdx) {
+          n.velocity = orig;
+        } else {
+          n.velocity = Math.max(1, Math.round(orig * SOFT));
+        }
+      }
+    } catch (e) {
+      console.warn("[MidiPlayer] mixer apply failed:", e);
+    }
+  }, [mixPart, partNames, playing, status, duration]);
 
   // 재생 속도 조절 — html-midi-player 는 speed 속성 미지원. 내부 Magenta Player.setTempo 로 직접 제어.
   // 재생 중에도 Tone.Transport.bpm 에 반영되어 즉시 반영됨.

@@ -118,6 +118,8 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
           setIsPlaying(playing);
         }}
         disabled={!info?.playable}
+        mixPart={highlightPart}
+        partNames={info?.partNames}
       />
       {!info?.playable && (
         <p className="text-center text-[11px] text-gray-400">
