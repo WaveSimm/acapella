@@ -66,18 +66,40 @@ export async function loadMeasureTimes(url: string): Promise<MeasureTime[]> {
 
 /**
  * MIDI 파일에서 첫 노트 시작 시간(초)을 반환.
- * partName 지정 시 해당 트랙명 매칭, 없으면 전 트랙 중 가장 빠른 노트.
+ * partName 지정 시 해당 트랙명 매칭 (case-insensitive + trim).
+ * 매칭 실패 또는 partName 미지정 시 전 트랙 중 가장 빠른 노트로 fallback.
  */
 export async function getFirstNoteTime(url: string, partName?: string | null): Promise<number | null> {
   const res = await fetch(url, { cache: "no-cache" });
   if (!res.ok) return null;
   const buf = await res.arrayBuffer();
   const midi = new Midi(buf);
+  const norm = (s: string | undefined | null) => (s ?? "").trim().toLowerCase();
+  const target = norm(partName);
+
+  const trackNames = midi.tracks.map((t) => t.name);
+  console.log("[getFirstNoteTime] tracks:", trackNames, "target:", partName);
+
+  // 1차: partName 매칭
+  if (target) {
+    for (const track of midi.tracks) {
+      if (norm(track.name) !== target) continue;
+      const firstNote = track.notes[0];
+      if (firstNote) {
+        console.log("[getFirstNoteTime] matched", track.name, "→", firstNote.time.toFixed(2));
+        return firstNote.time;
+      }
+    }
+    console.log("[getFirstNoteTime] partName match failed, falling back to earliest");
+  }
+
+  // 2차 fallback: 전 트랙 earliest
   let earliest = Infinity;
   for (const track of midi.tracks) {
-    if (partName && track.name !== partName) continue;
     const firstNote = track.notes[0];
     if (firstNote && firstNote.time < earliest) earliest = firstNote.time;
   }
-  return isFinite(earliest) ? earliest : null;
+  if (!isFinite(earliest)) return null;
+  console.log("[getFirstNoteTime] earliest across all tracks →", earliest.toFixed(2));
+  return earliest;
 }
