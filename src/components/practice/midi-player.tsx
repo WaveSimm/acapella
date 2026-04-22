@@ -66,11 +66,6 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
   const rafRef = useRef<number | null>(null);
   const lastUpdateRef = useRef(0);
   const lastTimeRef = useRef(0);
-  const debugLogPrevRef = useRef<{ start: number; lastLog: number } | null>(null);
-  // AudioContext 워밍업으로 인한 Transport drift 보정.
-  // 첫 note 이벤트 발화 시점의 Transport currentTime 을 기준으로 offset 계산.
-  // 이후 displayTime = rawCurrentTime - offset
-  const audioStartOffsetRef = useRef<number | null>(null);
 
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -120,28 +115,13 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
         const now = Date.now();
         if (now - lastUpdateRef.current >= 100) {
           lastUpdateRef.current = now;
-          const rawT = typeof el.currentTime === "number" ? el.currentTime : 0;
+          const t = typeof el.currentTime === "number" ? el.currentTime : 0;
           const isPlaying = !!el.playing;
-          // 진단: playing 상태에서 1초마다 rawT 값 로그. 실시간 대비 rawT 진행 속도 확인용.
-          if (isPlaying && !debugLogPrevRef.current) {
-            debugLogPrevRef.current = { start: now, lastLog: now };
-          } else if (!isPlaying && debugLogPrevRef.current) {
-            debugLogPrevRef.current = null;
-          }
-          if (debugLogPrevRef.current && now - debugLogPrevRef.current.lastLog >= 1000) {
-            const realElapsed = (now - debugLogPrevRef.current.start) / 1000;
-            console.log(`[MidiPlayer] realElapsed=${realElapsed.toFixed(2)}s rawT=${rawT.toFixed(2)}s ratio=${(rawT / realElapsed).toFixed(2)}`);
-            debugLogPrevRef.current.lastLog = now;
-          }
-          // 기본은 rawT. offset 측정된 경우 보정 적용.
-          const displayT = audioStartOffsetRef.current !== null
-            ? Math.max(0, rawT - audioStartOffsetRef.current)
-            : rawT;
-          lastTimeRef.current = displayT;
-          setCurrentTime(displayT);
+          lastTimeRef.current = t;
+          setCurrentTime(t);
           const d = typeof el.duration === "number" ? el.duration : 0;
-          onTimeUpdateRef.current?.(displayT, d, isPlaying);
-          runABLoop(el, rawT);  // AB 루프는 raw time 기준 (엔진과 동기)
+          onTimeUpdateRef.current?.(t, d, isPlaying);
+          runABLoop(el, t);
         }
       }
       rafRef.current = requestAnimationFrame(tick);
@@ -190,12 +170,7 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
       const d = typeof el.duration === "number" && !isNaN(el.duration) ? el.duration : 0;
       if (d > 0) setDuration(d);
     };
-    const onStart = () => {
-      setPlaying(true);
-      // offset 은 첫 note 이벤트에서 재측정될 수 있도록 null 로 (pause 후 resume 포함)
-      // — 단, 한 번 측정된 offset 은 같은 AudioContext 세션에서 유효하므로 재사용 해도 무방.
-      // 여기서는 재측정 기회 열어두기 위해 null. 첫 note 이벤트 시 다시 채워짐.
-    };
+    const onStart = () => setPlaying(true);
     const onStop = () => {
       setPlaying(false);
       const t = typeof el.currentTime === "number" ? el.currentTime : 0;
@@ -206,25 +181,10 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
       }
     };
     const onLoad = () => syncDuration();
-    // 첫 note 이벤트 — AudioContext 에서 실제 소리 나오는 순간. Transport drift offset 계산.
-    // offset은 0 이상으로 클램프: Tone.js look-ahead 로 note 가 Transport 보다 먼저 발화되는 경우
-    // 음수 offset이 되어 cursor 가 앞서가는 버그 발생 → max(0, ...) 로 방지.
-    const onNote = (e: Event) => {
-      if (audioStartOffsetRef.current !== null) return;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const detail = (e as CustomEvent<any>).detail;
-      const note = detail?.note ?? detail;
-      const notationTime = typeof note?.startTime === "number" ? note.startTime : 0;
-      const transportTime = typeof el.currentTime === "number" ? el.currentTime : 0;
-      const raw = transportTime - notationTime;
-      audioStartOffsetRef.current = Math.max(0, raw);
-      console.log("[MidiPlayer] audioStart offset:", audioStartOffsetRef.current.toFixed(2), "(raw:", raw.toFixed(2), "transportAt:", transportTime.toFixed(2), "noteAt:", notationTime.toFixed(2), ")");
-    };
 
     el.addEventListener("start", onStart);
     el.addEventListener("stop", onStop);
     el.addEventListener("load", onLoad);
-    el.addEventListener("note", onNote as EventListener);
 
     // src 로드 후 일정 시점에 duration이 설정되므로 몇 번 체크
     syncDuration();
@@ -238,17 +198,47 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
       el.removeEventListener("start", onStart);
       el.removeEventListener("stop", onStop);
       el.removeEventListener("load", onLoad);
-      el.removeEventListener("note", onNote as EventListener);
       clearInterval(iv);
     };
   }, [status, loop]);
 
-  // src 바뀌면 duration/offset 초기화
+  // src 바뀌면 duration 초기화
   useEffect(() => {
     setDuration(0);
     setCurrentTime(0);
-    audioStartOffsetRef.current = null;
   }, [src]);
+
+  // SoundFont 사전 로딩 — 첫 재생 시 stall 제거.
+  // html-midi-player 내부 @magenta Player.loadSamples() 호출: 오디오 출력 없이 샘플만 다운로드.
+  useEffect(() => {
+    if (status !== "ready") return;
+    const el = elRef.current;
+    if (!el) return;
+    let cancelled = false;
+    const tryPreload = async () => {
+      // duration 이 설정될 때까지 대기 (noteSequence 파싱 완료 지표)
+      for (let i = 0; i < 100 && !cancelled; i++) {
+        if (el.duration && el.duration > 0) break;
+        await new Promise((r) => setTimeout(r, 50));
+      }
+      if (cancelled) return;
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const player = (el as any).player;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const ns = (el as any).noteSequence;
+        if (player && ns && typeof player.loadSamples === "function") {
+          console.log("[MidiPlayer] preloading SoundFont samples...");
+          await player.loadSamples(ns);
+          console.log("[MidiPlayer] SoundFont preload done");
+        }
+      } catch (e) {
+        console.warn("[MidiPlayer] SoundFont preload failed:", e);
+      }
+    };
+    tryPreload();
+    return () => { cancelled = true; };
+  }, [status, src]);
 
   // speed 속성
   useEffect(() => {

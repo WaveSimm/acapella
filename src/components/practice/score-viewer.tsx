@@ -17,6 +17,8 @@ interface Props {
   measureWidth?: number;
   /** MIDI 파일 URL — 템포/박자 변화까지 반영한 정확한 시간→마디 매핑에 사용 */
   midiSrc?: string;
+  /** MIDI 재생 중 여부 — 오버레이 표시 판정에 사용 */
+  isPlaying?: boolean;
   onReady?: (info: ScoreInfo) => void;
 }
 
@@ -38,7 +40,7 @@ interface MeasureBound {
   endTime: number;   // 초
 }
 
-export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, measureWidth, midiSrc, onReady }: Props) {
+export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, measureWidth, midiSrc, isPlaying, onReady }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const cursorOverlayRef = useRef<HTMLDivElement>(null);
@@ -294,8 +296,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     return () => { cancelled = true; };
   }, [midiSrc]);
 
-  // 4) 커서 이동 — 프리컴퓨트된 마디 바운드 + CSS transform만 사용. OSMD 상호작용 없음.
-  const prevCursorTimeRef = useRef(0);
+  // 4) 커서 이동 — 프리컴퓨트된 마디 바운드 + CSS transform. OSMD 상호작용 없음.
   useEffect(() => {
     if (status !== "ready" || cursorTime == null) return;
     let bounds = measureBoundsRef.current;
@@ -306,15 +307,11 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     const overlay = cursorOverlayRef.current;
     if (bounds.length === 0 || !overlay) return;
 
-    prevCursorTimeRef.current = cursorTime;
-
-    // measureTimes (MIDI 기반 실제 시간) 가 있으면 MIDI 시간을 권위있는 소스로 사용.
-    // 없으면 bounds 에 있는 linear startTime/endTime fallback.
+    // measureTimes (MIDI 기반) 우선, 없으면 bounds linear fallback
     const times = measureTimesRef.current;
     let measureIdx = 0;
     let startT = 0, endT = 0;
-    if (times.length > 0 && bounds.length > 0) {
-      // binary search on measureTimes
+    if (times.length > 0) {
       let lo = 0, hi = Math.min(times.length, bounds.length) - 1;
       while (lo < hi) {
         const mid = (lo + hi + 1) >> 1;
@@ -343,7 +340,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     const x = m.x + progress * m.width;
     overlay.style.transform = `translateX(${x}px)`;
 
-    // 가로 스크롤 (경량): smooth behavior 는 모바일에서 메인스레드 블록 유발 → 즉시 스크롤
+    // 가로 스크롤
     const viewport = viewportRef.current;
     if (viewport) {
       const relX = x - viewport.scrollLeft;
@@ -351,11 +348,13 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       const rightThreshold = viewport.clientWidth * 0.85;
       if (relX < leftThreshold || relX > rightThreshold) {
         const target = Math.max(0, x - viewport.clientWidth * 0.3);
-        // scrollLeft 직접 대입 = instant, 모바일에서 훨씬 가벼움
         viewport.scrollLeft = target;
       }
     }
   }, [cursorTime, status]);
+
+  // 엔진 워밍업 감지: 재생 중인데 cursorTime 이 아직 0 에 가까우면 "준비중" 상태
+  const warmingUp = !!(isPlaying && (cursorTime ?? 0) < 0.1);
 
   if (status === "error") {
     return (
@@ -376,13 +375,24 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         className="relative w-full overflow-x-auto overflow-y-hidden"
       >
         <div ref={mountRef} className="relative inline-block" style={{ minWidth: "100%" }} />
-        {/* 커스텀 커서 — OSMD 내장 커서 대신 가벼운 overlay 사용 */}
+        {/* 커스텀 커서 — OSMD 내장 커서 대신 가벼운 overlay 사용. 워밍업 중엔 숨김. */}
         <div
           ref={cursorOverlayRef}
           aria-hidden="true"
           className="pointer-events-none absolute top-0 left-0 bottom-0 w-0.5 bg-emerald-500/70"
-          style={{ transform: "translateX(-100px)", willChange: "transform" }}
+          style={{
+            transform: "translateX(-100px)",
+            willChange: "transform",
+            opacity: warmingUp ? 0 : 1,
+          }}
         />
+        {warmingUp && (
+          <div className="pointer-events-none absolute inset-0 flex items-center justify-center bg-white/60 backdrop-blur-sm">
+            <div className="rounded-full bg-blue-600 px-4 py-2 text-xs font-medium text-white shadow">
+              재생 준비중…
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

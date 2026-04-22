@@ -107,6 +107,7 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
         tempoBpm={info?.tempoBpm ?? undefined}
         measureWidth={measureWidth}
         midiSrc={midiSrc}
+        isPlaying={isPlaying}
         onReady={setInfo}
       />
 

@@ -45,3 +45,5 @@ scripts/score-analysis/song_frames/
 scripts/score-analysis/videos/
 scripts/score-analysis/*.mp4
 .env.vercel.local
+
+.env*.local

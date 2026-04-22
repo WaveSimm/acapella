@@ -10,6 +10,28 @@ function escapeXml(s: string): string {
     .replace(/'/g, "&apos;");
 }
 
+// 부분 마디 앞쪽에 삽입할 쉼표 분해 (큰 단위부터 탐욕적으로)
+// XML_DIVISIONS 기준: whole=div*4, half=div*2, quarter=div, 8th=div/2, 16th=div/4, 32nd=div/8
+function restsForDivisions(totalDiv: number): Array<{ type: string; dur: number }> {
+  const out: Array<{ type: string; dur: number }> = [];
+  const units: Array<{ type: string; dur: number }> = [
+    { type: "whole", dur: XML_DIVISIONS * 4 },
+    { type: "half", dur: XML_DIVISIONS * 2 },
+    { type: "quarter", dur: XML_DIVISIONS },
+    { type: "eighth", dur: Math.max(1, Math.floor(XML_DIVISIONS / 2)) },
+    { type: "16th", dur: Math.max(1, Math.floor(XML_DIVISIONS / 4)) },
+    { type: "32nd", dur: Math.max(1, Math.floor(XML_DIVISIONS / 8)) },
+  ];
+  let remaining = totalDiv;
+  for (const u of units) {
+    while (remaining >= u.dur) {
+      out.push(u);
+      remaining -= u.dur;
+    }
+  }
+  return out;
+}
+
 export function buildMusicXml(parsed: ParsedScore): string {
   const lines: string[] = [];
   lines.push('<?xml version="1.0" encoding="UTF-8" standalone="no"?>');
@@ -78,6 +100,17 @@ export function buildMusicXml(parsed: ParsedScore): string {
       if (m.notes.length === 0) {
         const fullMeasureDur = XML_DIVISIONS * 4 * (tsNum ?? 4) / (tsDen ?? 4);
         lines.push(`      <note><rest measure="yes"/><duration>${Math.round(fullMeasureDur)}</duration></note>`);
+      } else if (tsNum && tsDen) {
+        // 부분 마디 앞쪽 쉼표 패딩 — NWC에서 시작 쉼표 생략된 경우 (예: 알토 2마디 첫 2분쉼표)
+        const measureDur = Math.round(XML_DIVISIONS * 4 * tsNum / tsDen);
+        let contentDur = 0;
+        for (const n of m.notes) contentDur += n.durDivisions;
+        if (contentDur > 0 && contentDur < measureDur) {
+          const missing = measureDur - contentDur;
+          for (const r of restsForDivisions(missing)) {
+            lines.push(`      <note><rest/><duration>${r.dur}</duration><type>${r.type}</type></note>`);
+          }
+        }
       }
       for (const n of m.notes) {
         if (n.type === "rest") {
