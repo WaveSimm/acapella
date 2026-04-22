@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
+import { loadMeasureTimes, type MeasureTime } from "@/lib/midi-time-map";
 
 interface Props {
   src: string;
@@ -14,6 +15,8 @@ interface Props {
   zoom?: number;
   /** 마디 폭 (OSMD 단위). 지정 시 FixedMeasureWidth=true로 강제 균등. */
   measureWidth?: number;
+  /** MIDI 파일 URL — 템포/박자 변화까지 반영한 정확한 시간→마디 매핑에 사용 */
+  midiSrc?: string;
   onReady?: (info: ScoreInfo) => void;
 }
 
@@ -35,12 +38,13 @@ interface MeasureBound {
   endTime: number;   // 초
 }
 
-export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, measureWidth, onReady }: Props) {
+export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, measureWidth, midiSrc, onReady }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const cursorOverlayRef = useRef<HTMLDivElement>(null);
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const measureBoundsRef = useRef<MeasureBound[]>([]);
+  const measureTimesRef = useRef<MeasureTime[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errMsg, setErrMsg] = useState("");
 
@@ -276,6 +280,20 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [zoom, measureWidth, status]);
 
+  // MIDI 파일에서 각 마디의 실제 시작 시간(초) 추출 — 템포 변화 반영
+  useEffect(() => {
+    if (!midiSrc) return;
+    let cancelled = false;
+    loadMeasureTimes(midiSrc)
+      .then((times) => {
+        if (cancelled) return;
+        measureTimesRef.current = times;
+        console.log("[ScoreViewer] measureTimes loaded:", times.length, "firstEnd:", times[0]?.endTime.toFixed(2));
+      })
+      .catch((e) => console.warn("[ScoreViewer] measureTimes load failed:", e));
+    return () => { cancelled = true; };
+  }, [midiSrc]);
+
   // 4) 커서 이동 — 프리컴퓨트된 마디 바운드 + CSS transform만 사용. OSMD 상호작용 없음.
   const prevCursorTimeRef = useRef(0);
   useEffect(() => {
@@ -289,27 +307,47 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     if (bounds.length === 0 || !overlay) return;
 
     // 점프 필터: 정상 재생은 100ms 간격이라 delta ≈ 0.1s. delta > 1s면 engine 버퍼/워밍업 글리치로 간주.
-    // 첫 sample이 큰 값이면 0으로 스냅, 이후 tick부터 자연스럽게 따라감.
     const prev = prevCursorTimeRef.current;
     const delta = cursorTime - prev;
     if (delta > 1.0) {
       prevCursorTimeRef.current = cursorTime;
-      // overlay는 이전 위치(또는 첫 마디) 유지
       if (prev < 0.1) overlay.style.transform = `translateX(${bounds[0].x}px)`;
       return;
     }
     prevCursorTimeRef.current = cursorTime;
 
-    // binary search로 cursorTime 이 속한 마디 찾기
-    let lo = 0, hi = bounds.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi + 1) >> 1;
-      if (bounds[mid].startTime <= cursorTime) lo = mid;
-      else hi = mid - 1;
+    // measureTimes (MIDI 기반 실제 시간) 가 있으면 MIDI 시간을 권위있는 소스로 사용.
+    // 없으면 bounds 에 있는 linear startTime/endTime fallback.
+    const times = measureTimesRef.current;
+    let measureIdx = 0;
+    let startT = 0, endT = 0;
+    if (times.length > 0 && bounds.length > 0) {
+      // binary search on measureTimes
+      let lo = 0, hi = Math.min(times.length, bounds.length) - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (times[mid].startTime <= cursorTime) lo = mid;
+        else hi = mid - 1;
+      }
+      measureIdx = lo;
+      startT = times[measureIdx].startTime;
+      endT = times[measureIdx].endTime;
+    } else {
+      let lo = 0, hi = bounds.length - 1;
+      while (lo < hi) {
+        const mid = (lo + hi + 1) >> 1;
+        if (bounds[mid].startTime <= cursorTime) lo = mid;
+        else hi = mid - 1;
+      }
+      measureIdx = lo;
+      startT = bounds[measureIdx].startTime;
+      endT = bounds[measureIdx].endTime;
     }
-    const m = bounds[lo];
+    const m = bounds[Math.min(measureIdx, bounds.length - 1)];
     if (!m) return;
-    const progress = Math.max(0, Math.min(1, (cursorTime - m.startTime) / (m.endTime - m.startTime)));
+    const progress = endT > startT
+      ? Math.max(0, Math.min(1, (cursorTime - startT) / (endT - startT)))
+      : 0;
     const x = m.x + progress * m.width;
     overlay.style.transform = `translateX(${x}px)`;
 

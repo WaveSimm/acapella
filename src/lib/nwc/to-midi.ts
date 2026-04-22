@@ -18,13 +18,13 @@ export function buildMidi(parsed: ParsedScore): Buffer {
   meta.push({ deltaTime: 0, meta: true, type: "trackName", text: parsed.songTitle || "Untitled" });
   const [num, denom] = parsed.timeSig.split("/").map(Number);
   if (num && denom) {
-    const logDenom = Math.round(Math.log2(denom));
+    // midi-file 라이브러리가 내부적으로 log2(denom) 변환을 하므로, 실제 denom 값을 전달한다.
     meta.push({
       deltaTime: 0,
       meta: true,
       type: "timeSignature",
       numerator: num,
-      denominator: logDenom,
+      denominator: denom,
       metronome: 24,
       thirtyseconds: 8,
     });
