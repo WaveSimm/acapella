@@ -277,12 +277,14 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     const overlay = cursorOverlayRef.current;
     if (bounds.length === 0 || !overlay) return;
 
-    // 모바일 AudioContext 워밍업으로 인한 첫 업데이트 점프 필터.
-    // prev ~ 0 이고 현재 시간 > 1s 면 Transport가 앞서간 것으로 간주 → 0으로 초기화만
+    // 점프 필터: 정상 재생은 100ms 간격이라 delta ≈ 0.1s. delta > 1s면 engine 버퍼/워밍업 글리치로 간주.
+    // 첫 sample이 큰 값이면 0으로 스냅, 이후 tick부터 자연스럽게 따라감.
     const prev = prevCursorTimeRef.current;
-    if (prev < 0.1 && cursorTime > 1) {
+    const delta = cursorTime - prev;
+    if (delta > 1.0) {
       prevCursorTimeRef.current = cursorTime;
-      overlay.style.transform = `translateX(${bounds[0].x}px)`;
+      // overlay는 이전 위치(또는 첫 마디) 유지
+      if (prev < 0.1) overlay.style.transform = `translateX(${bounds[0].x}px)`;
       return;
     }
     prevCursorTimeRef.current = cursorTime;

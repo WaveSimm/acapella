@@ -65,6 +65,7 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
   const barRef = useRef<HTMLDivElement>(null);
   const rafRef = useRef<number | null>(null);
   const lastUpdateRef = useRef(0);
+  const lastTimeRef = useRef(0);
 
   const [playing, setPlaying] = useState(false);
   const [duration, setDuration] = useState(0);
@@ -113,39 +114,50 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
       if (el) {
         const now = Date.now();
         if (now - lastUpdateRef.current >= 100) {
-          lastUpdateRef.current = now;
           const t = typeof el.currentTime === "number" ? el.currentTime : 0;
-          setCurrentTime(t);
-          const d = typeof el.duration === "number" ? el.duration : 0;
-          onTimeUpdateRef.current?.(t, d, !!el.playing);
-          const s = abRef.current;
-          if (
-            s.abMode === "active" &&
-            s.pointA !== null &&
-            s.pointB !== null &&
-            !s.dragging &&
-            !abSeekingRef.current &&
-            Date.now() > abCooldownUntilRef.current &&
-            t >= s.pointB
-          ) {
-            abSeekingRef.current = true;
-            abCooldownUntilRef.current = Date.now() + 600;
-            const pointA = s.pointA;
-            try { el.stop(); } catch {}
-            el.currentTime = pointA;
-            setCurrentTime(pointA);
-            setTimeout(() => {
-              const cur = elRef.current;
-              if (cur) {
-                cur.currentTime = pointA;
-                try { cur.start(); } catch {}
-              }
-              abSeekingRef.current = false;
-            }, 60);
+          const isPlaying = !!el.playing;
+          // 점프 필터: 재생 중 직전 값 대비 1초 이상 앞서가면 engine 글리치로 간주.
+          const delta = t - lastTimeRef.current;
+          const glitchy = isPlaying && delta > 1.0;
+          lastTimeRef.current = t;
+          if (!glitchy) {
+            lastUpdateRef.current = now;
+            setCurrentTime(t);
+            const d = typeof el.duration === "number" ? el.duration : 0;
+            onTimeUpdateRef.current?.(t, d, isPlaying);
+            runABLoop(el, t);
           }
         }
       }
       rafRef.current = requestAnimationFrame(tick);
+    };
+
+    const runABLoop = (el: MidiEl, t: number) => {
+      const s = abRef.current;
+      if (
+        s.abMode === "active" &&
+        s.pointA !== null &&
+        s.pointB !== null &&
+        !s.dragging &&
+        !abSeekingRef.current &&
+        Date.now() > abCooldownUntilRef.current &&
+        t >= s.pointB
+      ) {
+        abSeekingRef.current = true;
+        abCooldownUntilRef.current = Date.now() + 600;
+        const pointA = s.pointA;
+        try { el.stop(); } catch { /* noop */ }
+        el.currentTime = pointA;
+        setCurrentTime(pointA);
+        setTimeout(() => {
+          const cur = elRef.current;
+          if (cur) {
+            cur.currentTime = pointA;
+            try { cur.start(); } catch { /* noop */ }
+          }
+          abSeekingRef.current = false;
+        }, 60);
+      }
     };
     rafRef.current = requestAnimationFrame(tick);
     return () => {
