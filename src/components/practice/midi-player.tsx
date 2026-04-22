@@ -66,6 +66,7 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
   const rafRef = useRef<number | null>(null);
   const lastUpdateRef = useRef(0);
   const lastTimeRef = useRef(0);
+  const debugLogPrevRef = useRef<{ start: number; lastLog: number } | null>(null);
   // AudioContext 워밍업으로 인한 Transport drift 보정.
   // 첫 note 이벤트 발화 시점의 Transport currentTime 을 기준으로 offset 계산.
   // 이후 displayTime = rawCurrentTime - offset
@@ -121,7 +122,18 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
           lastUpdateRef.current = now;
           const rawT = typeof el.currentTime === "number" ? el.currentTime : 0;
           const isPlaying = !!el.playing;
-          // 기본은 rawT. offset 측정된 경우 보정 적용 (Android warmup drift 대응).
+          // 진단: playing 상태에서 1초마다 rawT 값 로그. 실시간 대비 rawT 진행 속도 확인용.
+          if (isPlaying && !debugLogPrevRef.current) {
+            debugLogPrevRef.current = { start: now, lastLog: now };
+          } else if (!isPlaying && debugLogPrevRef.current) {
+            debugLogPrevRef.current = null;
+          }
+          if (debugLogPrevRef.current && now - debugLogPrevRef.current.lastLog >= 1000) {
+            const realElapsed = (now - debugLogPrevRef.current.start) / 1000;
+            console.log(`[MidiPlayer] realElapsed=${realElapsed.toFixed(2)}s rawT=${rawT.toFixed(2)}s ratio=${(rawT / realElapsed).toFixed(2)}`);
+            debugLogPrevRef.current.lastLog = now;
+          }
+          // 기본은 rawT. offset 측정된 경우 보정 적용.
           const displayT = audioStartOffsetRef.current !== null
             ? Math.max(0, rawT - audioStartOffsetRef.current)
             : rawT;
