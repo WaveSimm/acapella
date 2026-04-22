@@ -68,37 +68,65 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     }
     const secPerMeasure = (tsNum / tsDen) * 240 / bpm;
 
-    // FixedMeasureWidth 가 켜져 있어 모든 마디는 동일 폭. 전체 SVG 폭을 마디 수로 균등 분할.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const totalMeasures = (osmd.Sheet?.SourceMeasures?.length as number) ?? 1;
+    // OSMD GraphicalMeasures 에서 마디별 실제 Stave 요소의 bounding rect 사용.
+    // [measureIdx][staffIdx] 구조. 첫 유효 스태프의 X, width를 마디 좌표로.
     const mountRect = mount.getBoundingClientRect();
-    const staves = mount.querySelectorAll<SVGGraphicsElement>("g.vf-stave");
-
-    let minLeft = Infinity, maxRight = -Infinity;
-    for (const el of Array.from(staves)) {
-      const r = el.getBoundingClientRect();
-      if (r.width <= 0) continue;
-      const left = r.left - mountRect.left;
-      const right = left + r.width;
-      if (left < minLeft) minLeft = left;
-      if (right > maxRight) maxRight = right;
-    }
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const gs = osmd.GraphicSheet as any;
+    const pages = gs?.MusicPages ?? [];
     const bounds: MeasureBound[] = [];
-    if (isFinite(minLeft) && isFinite(maxRight) && totalMeasures > 0) {
-      const totalWidth = maxRight - minLeft;
-      const measureWidth = totalWidth / totalMeasures;
-      for (let i = 0; i < totalMeasures; i++) {
-        const startTime = i * secPerMeasure;
-        bounds.push({
-          x: minLeft + i * measureWidth,
-          width: measureWidth,
-          startTime,
-          endTime: startTime + secPerMeasure,
-        });
+
+    for (const page of pages) {
+      for (const system of page.MusicSystems ?? []) {
+        const measureRows = system.GraphicalMeasures ?? [];
+        for (const row of measureRows) {
+          let gm = null;
+          for (const candidate of row ?? []) {
+            if (candidate?.PositionAndShape) { gm = candidate; break; }
+          }
+          if (!gm) continue;
+          const svgEl: SVGGraphicsElement | undefined = gm.Stave?.attrs?.elem || gm.Stave?.element;
+          let x = 0, w = 0;
+          if (svgEl && typeof svgEl.getBoundingClientRect === "function") {
+            const r = svgEl.getBoundingClientRect();
+            x = r.left - mountRect.left;
+            w = r.width;
+          } else {
+            const unitToPx = 10;
+            x = gm.PositionAndShape.AbsolutePosition.x * unitToPx;
+            w = gm.PositionAndShape.Size.width * unitToPx;
+          }
+          const measureIdx = bounds.length;
+          const startTime = measureIdx * secPerMeasure;
+          bounds.push({ x, width: w, startTime, endTime: startTime + secPerMeasure });
+        }
       }
     }
 
-    console.log("[ScoreViewer] bounds built:", bounds.length, "totalMeasures:", totalMeasures, "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2), "measureWidth:", (bounds[0]?.width ?? 0).toFixed(1));
+    // Fallback: API 경로가 달라서 실패했을 때만 전체 너비 균등 분할
+    if (bounds.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const totalMeasures = (osmd.Sheet?.SourceMeasures?.length as number) ?? 1;
+      const staves = mount.querySelectorAll<SVGGraphicsElement>("g.vf-stave");
+      let minLeft = Infinity, maxRight = -Infinity;
+      for (const el of Array.from(staves)) {
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0) continue;
+        const left = r.left - mountRect.left;
+        const right = left + r.width;
+        if (left < minLeft) minLeft = left;
+        if (right > maxRight) maxRight = right;
+      }
+      if (isFinite(minLeft) && isFinite(maxRight) && totalMeasures > 0) {
+        const mw = (maxRight - minLeft) / totalMeasures;
+        for (let i = 0; i < totalMeasures; i++) {
+          const startTime = i * secPerMeasure;
+          bounds.push({ x: minLeft + i * mw, width: mw, startTime, endTime: startTime + secPerMeasure });
+        }
+      }
+    }
+
+    console.log("[ScoreViewer] bounds built:", bounds.length, "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2), "firstWidth:", (bounds[0]?.width ?? 0).toFixed(1), "firstX:", (bounds[0]?.x ?? 0).toFixed(1));
     return bounds;
   }
 
@@ -126,10 +154,8 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           rules.RenderSingleHorizontalStaffline = true;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
           if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
-          // 모든 마디 동일 폭 — 커서 위치 계산이 간단해지고 모바일에서도 안정적.
-          // 마디 내부 노트는 균등 분배(duration 비례 아님) 되지만, cursor follow 신뢰성이 우선.
-          if ("FixedMeasureWidth" in rules) rules.FixedMeasureWidth = true;
-          if ("FixedMeasureWidthFixedValue" in rules) rules.FixedMeasureWidthFixedValue = 20.0;
+          // 마디 내부 노트는 OSMD 기본 duration-proportional 배치로 유지.
+          // 마디 폭은 각각 다르지만 GraphicalMeasures API에서 실제 X좌표를 가져와 커서 계산에 사용.
         }
         const sep = src.includes("?") ? "&" : "?";
         const res = await fetch(`${src}${sep}t=${Date.now()}`, { cache: "no-cache" });
