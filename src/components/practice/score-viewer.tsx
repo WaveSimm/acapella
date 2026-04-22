@@ -42,25 +42,14 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errMsg, setErrMsg] = useState("");
 
-  // 마디 경계 프리컴퓨트: 각 마디의 X좌표·폭·시간 범위를 DOM에서 1회 측정
+  // 마디 경계 프리컴퓨트: OSMD GraphicalMeasures 에서 정확한 각 마디 X/width 추출
   function buildMeasureBounds() {
     const mount = mountRef.current;
     const osmd = osmdRef.current;
     if (!mount || !osmd) return [];
-    const instruments = osmd.Sheet.Instruments ?? [];
-    const numInst = Math.max(1, instruments.filter((i) => i.Visible).length);
-    // 다양한 셀렉터 fallback — OSMD 버전별 DOM 구조 차이 대응
-    let staves: NodeListOf<SVGGraphicsElement> = mount.querySelectorAll<SVGGraphicsElement>("g.vf-stave");
-    if (staves.length === 0) staves = mount.querySelectorAll<SVGGraphicsElement>("g.staffline g.vf-stave");
-    if (staves.length === 0) staves = mount.querySelectorAll<SVGGraphicsElement>("[class*='stave']");
-    if (staves.length === 0) {
-      console.warn("[ScoreViewer] no stave elements found");
-      return [];
-    }
-    const mountRect = mount.getBoundingClientRect();
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const bpm = (osmd.Sheet as any).DefaultStartTempoInBpm ?? tempoBpm ?? 120;
-    // TimeSig 추출 — OSMD 내부 API 변경 대비 여러 경로 시도
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const sm = osmd.Sheet?.SourceMeasures?.[0] as any;
     const ts = sm?.ActiveTimeSignature ?? sm?.activeTimeSignature ?? sm?.Rhythm;
@@ -71,51 +60,72 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     }
     const secPerMeasure = (tsNum / tsDen) * 240 / bpm;
 
+    // OSMD 내부 GraphicalMeasure 에서 좌표 획득.
+    // 경로: GraphicSheet.MusicPages[0].MusicSystems[*].GraphicalMeasures[staffIdx][measureInSystemIdx]
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const totalMeasures = (osmd.Sheet?.SourceMeasures?.length as number) ?? 1;
+    const gs = osmd.GraphicSheet as any;
+    const pages = gs?.MusicPages;
+    const mountRect = mount.getBoundingClientRect();
+    const bounds: MeasureBound[] = [];
 
-    // stave 들의 X 위치 수집 + 소트. OSMD subpixel 노이즈 필터링.
-    const xs: { x: number; right: number }[] = [];
-    for (const el of Array.from(staves)) {
-      const r = el.getBoundingClientRect();
-      if (r.width <= 0) continue;
-      const x = r.left - mountRect.left;
-      xs.push({ x, right: x + r.width });
-    }
-    if (xs.length === 0 || totalMeasures < 1) {
-      console.warn("[ScoreViewer] bounds: insufficient stave data");
-      return [];
-    }
-    xs.sort((a, b) => a.x - b.x);
-    const minLeft = xs[0].x;
-    const maxRight = Math.max(...xs.map((e) => e.right));
-    const totalWidth = maxRight - minLeft;
-    // 최소 간격 = 평균 마디 폭의 절반. 이보다 가까우면 같은 마디의 subpixel artifact 로 간주.
-    const avgMeasureWidth = totalWidth / totalMeasures;
-    const minGap = avgMeasureWidth * 0.5;
-
-    const measureXs: number[] = [xs[0].x];
-    for (let i = 1; i < xs.length; i++) {
-      if (xs[i].x - measureXs[measureXs.length - 1] >= minGap) {
-        measureXs.push(xs[i].x);
+    if (pages && pages.length > 0) {
+      // 모든 system의 모든 measure를 순회
+      for (const page of pages) {
+        for (const system of page.MusicSystems ?? []) {
+          // 첫 번째 (보이는) 스태프의 마디들만 (모든 스태프가 동일 X)
+          const staffMeasures = (system.GraphicalMeasures ?? [])[0] ?? [];
+          for (const gm of staffMeasures) {
+            if (!gm?.PositionAndShape) continue;
+            // SVG 요소를 통해 실제 px 좌표 얻기 (unit-to-px 변환 우회)
+            const svgEl: SVGGraphicsElement | undefined = gm.Stave?.attrs?.elem || gm.Stave?.element;
+            let x = 0, w = 0;
+            if (svgEl && typeof svgEl.getBoundingClientRect === "function") {
+              const r = svgEl.getBoundingClientRect();
+              x = r.left - mountRect.left;
+              w = r.width;
+            } else {
+              // Fallback: PositionAndShape 를 현재 줌으로 변환
+              const unitToPx = 10; // OSMD 기본 — 정확치 않으면 실제 스케일 유추 필요
+              x = gm.PositionAndShape.AbsolutePosition.x * unitToPx;
+              w = gm.PositionAndShape.Size.width * unitToPx;
+            }
+            const measureIdx = bounds.length;
+            const startTime = measureIdx * secPerMeasure;
+            bounds.push({ x, width: w, startTime, endTime: startTime + secPerMeasure });
+          }
+        }
       }
     }
 
-    const bounds: MeasureBound[] = [];
-    for (let i = 0; i < measureXs.length; i++) {
-      const x = measureXs[i];
-      const nextX = i < measureXs.length - 1 ? measureXs[i + 1] : maxRight;
-      const width = nextX - x;
-      const startTime = i * secPerMeasure;
-      bounds.push({ x, width, startTime, endTime: startTime + secPerMeasure });
+    // Fallback: GraphicSheet API 경로가 달라 데이터를 못 얻으면 전체 너비 균등 분할
+    if (bounds.length === 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const totalMeasures = (osmd.Sheet?.SourceMeasures?.length as number) ?? 1;
+      const staves = mount.querySelectorAll<SVGGraphicsElement>("g.vf-stave");
+      let minLeft = Infinity, maxRight = -Infinity;
+      for (const el of Array.from(staves)) {
+        const r = el.getBoundingClientRect();
+        if (r.width <= 0) continue;
+        const left = r.left - mountRect.left;
+        const right = left + r.width;
+        if (left < minLeft) minLeft = left;
+        if (right > maxRight) maxRight = right;
+      }
+      if (isFinite(minLeft) && isFinite(maxRight) && totalMeasures > 0) {
+        const avg = (maxRight - minLeft) / totalMeasures;
+        for (let i = 0; i < totalMeasures; i++) {
+          const startTime = i * secPerMeasure;
+          bounds.push({
+            x: minLeft + i * avg,
+            width: avg,
+            startTime,
+            endTime: startTime + secPerMeasure,
+          });
+        }
+      }
     }
-    console.log(
-      "[ScoreViewer] bounds built:", bounds.length,
-      "sourceMeasures:", totalMeasures,
-      "firstWidth:", (bounds[0]?.width ?? 0).toFixed(1),
-      "avgWidth:", avgMeasureWidth.toFixed(1),
-      "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2),
-    );
+
+    console.log("[ScoreViewer] bounds built:", bounds.length, "bpm:", bpm, "ts:", tsNum + "/" + tsDen, "secPerMeasure:", secPerMeasure.toFixed(2), "firstWidth:", (bounds[0]?.width ?? 0).toFixed(1), "firstX:", (bounds[0]?.x ?? 0).toFixed(1));
     return bounds;
   }
 
