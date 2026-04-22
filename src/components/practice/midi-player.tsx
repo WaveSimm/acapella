@@ -199,6 +199,8 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
     };
     const onLoad = () => syncDuration();
     // 첫 note 이벤트 — AudioContext 에서 실제 소리 나오는 순간. Transport drift offset 계산.
+    // offset은 0 이상으로 클램프: Tone.js look-ahead 로 note 가 Transport 보다 먼저 발화되는 경우
+    // 음수 offset이 되어 cursor 가 앞서가는 버그 발생 → max(0, ...) 로 방지.
     const onNote = (e: Event) => {
       if (audioStartOffsetRef.current !== null) return;
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -206,8 +208,9 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
       const note = detail?.note ?? detail;
       const notationTime = typeof note?.startTime === "number" ? note.startTime : 0;
       const transportTime = typeof el.currentTime === "number" ? el.currentTime : 0;
-      audioStartOffsetRef.current = transportTime - notationTime;
-      console.log("[MidiPlayer] audioStart offset:", audioStartOffsetRef.current.toFixed(2), "(transportAt:", transportTime.toFixed(2), "noteAt:", notationTime.toFixed(2), ")");
+      const raw = transportTime - notationTime;
+      audioStartOffsetRef.current = Math.max(0, raw);
+      console.log("[MidiPlayer] audioStart offset:", audioStartOffsetRef.current.toFixed(2), "(raw:", raw.toFixed(2), "transportAt:", transportTime.toFixed(2), "noteAt:", notationTime.toFixed(2), ")");
     };
 
     el.addEventListener("start", onStart);
