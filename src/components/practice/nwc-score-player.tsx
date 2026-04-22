@@ -22,6 +22,8 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
   const [info, setInfo] = useState<ScoreInfo | null>(null);
   const [highlightPart, setHighlightPart] = useState<string | null>(null);
   const [measureWidth, setMeasureWidth] = useState<number>(DEFAULT_MEASURE_WIDTH);
+  // 드래그 중 표시용 (실제 OSMD 반영은 release 시). 초기엔 measureWidth 와 동일.
+  const [pendingWidth, setPendingWidth] = useState<number>(DEFAULT_MEASURE_WIDTH);
   const [isPlaying, setIsPlaying] = useState(false);
 
   // 곡별 마디 폭 저장/복원 — localStorage 키 = musicXmlSrc
@@ -30,14 +32,19 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
     const saved = window.localStorage.getItem(storageKey(musicXmlSrc));
     if (saved) {
       const v = parseInt(saved, 10);
-      if (!isNaN(v) && v >= MIN_MW && v <= MAX_MW) setMeasureWidth(v);
+      if (!isNaN(v) && v >= MIN_MW && v <= MAX_MW) {
+        setMeasureWidth(v);
+        setPendingWidth(v);
+      }
     }
   }, [musicXmlSrc]);
 
-  const handleMeasureWidth = (v: number) => {
-    setMeasureWidth(v);
+  // 드래그/클릭 release 시점에만 실제 OSMD에 반영
+  const commitMeasureWidth = () => {
+    if (pendingWidth === measureWidth) return;
+    setMeasureWidth(pendingWidth);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(storageKey(musicXmlSrc), String(v));
+      window.localStorage.setItem(storageKey(musicXmlSrc), String(pendingWidth));
     }
   };
 
@@ -80,13 +87,17 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
           min={MIN_MW}
           max={MAX_MW}
           step={1}
-          value={measureWidth}
-          onChange={(e) => handleMeasureWidth(parseInt(e.target.value, 10))}
+          value={pendingWidth}
+          onChange={(e) => setPendingWidth(parseInt(e.target.value, 10))}
+          onPointerUp={commitMeasureWidth}
+          onTouchEnd={commitMeasureWidth}
+          onMouseUp={commitMeasureWidth}
+          onKeyUp={commitMeasureWidth}
           disabled={isPlaying}
           className="flex-1 disabled:cursor-not-allowed"
           title={isPlaying ? "재생 중에는 변경 불가" : ""}
         />
-        <span className="w-8 shrink-0 text-right tabular-nums text-gray-700">{measureWidth}</span>
+        <span className="w-8 shrink-0 text-right tabular-nums text-gray-700">{pendingWidth}</span>
       </div>
 
       <ScoreViewer
