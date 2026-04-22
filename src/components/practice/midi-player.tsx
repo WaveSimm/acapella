@@ -121,14 +121,10 @@ export function MidiPlayer({ src, onTimeUpdate, disabled }: Props) {
           lastUpdateRef.current = now;
           const rawT = typeof el.currentTime === "number" ? el.currentTime : 0;
           const isPlaying = !!el.playing;
-          // offset 이 아직 측정 안된 재생 시작 전 구간은 display time = 0
-          // offset 측정 후: displayT = rawT - offset (음수면 0 클램프)
-          let displayT: number;
-          if (audioStartOffsetRef.current === null) {
-            displayT = isPlaying ? 0 : rawT;
-          } else {
-            displayT = Math.max(0, rawT - audioStartOffsetRef.current);
-          }
+          // 기본은 rawT. offset 측정된 경우 보정 적용 (Android warmup drift 대응).
+          const displayT = audioStartOffsetRef.current !== null
+            ? Math.max(0, rawT - audioStartOffsetRef.current)
+            : rawT;
           lastTimeRef.current = displayT;
           setCurrentTime(displayT);
           const d = typeof el.duration === "number" ? el.duration : 0;
