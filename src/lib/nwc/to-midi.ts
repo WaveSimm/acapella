@@ -60,7 +60,17 @@ function buildStaffTrack(staff: Staff): MidiEvent[] {
 
   const flatItems: MeasureItem[] = [];
   for (const m of staff.measures) {
-    if (m.notes.length === 0) continue; // 빈 마디는 타 스태프의 explicit rest 로 이미 정렬
+    if (m.notes.length === 0) {
+      // 빈 마디 — 전체 마디 쉼표로 MIDI 타이밍 정렬 (MusicXML <rest measure="yes"/> 와 일치)
+      flatItems.push({
+        type: "rest",
+        durDivisions: 0,
+        durTicks: ticksPerMeasure,
+        durType: "",
+        dots: 0,
+      });
+      continue;
+    }
     const content = m.notes.reduce((s, n) => s + n.durTicks, 0);
     if (content > 0 && content < ticksPerMeasure) {
       flatItems.push({
