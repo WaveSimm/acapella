@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import type { OpenSheetMusicDisplay } from "opensheetmusicdisplay";
-import { loadMeasureTimes, type MeasureTime } from "@/lib/midi-time-map";
+import { loadMeasureTimes, getFirstNoteTime, type MeasureTime } from "@/lib/midi-time-map";
 
 interface Props {
   src: string;
@@ -47,6 +47,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
   const osmdRef = useRef<OpenSheetMusicDisplay | null>(null);
   const measureBoundsRef = useRef<MeasureBound[]>([]);
   const measureTimesRef = useRef<MeasureTime[]>([]);
+  const firstNoteTimeRef = useRef<number>(0);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [errMsg, setErrMsg] = useState("");
 
@@ -296,6 +297,20 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     return () => { cancelled = true; };
   }, [midiSrc]);
 
+  // highlightPart의 첫 노트 시작 시간 — 재생 시 커서 위치 floor로 사용
+  useEffect(() => {
+    if (!midiSrc) return;
+    let cancelled = false;
+    getFirstNoteTime(midiSrc, highlightPart ?? null)
+      .then((t) => {
+        if (cancelled) return;
+        firstNoteTimeRef.current = t ?? 0;
+        console.log("[ScoreViewer] firstNoteTime:", t?.toFixed(2), "part:", highlightPart ?? "(any)");
+      })
+      .catch((e) => console.warn("[ScoreViewer] firstNoteTime load failed:", e));
+    return () => { cancelled = true; };
+  }, [midiSrc, highlightPart]);
+
   // 4) 커서 이동 — 프리컴퓨트된 마디 바운드 + CSS transform. OSMD 상호작용 없음.
   useEffect(() => {
     if (status !== "ready" || cursorTime == null) return;
@@ -307,6 +322,11 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     const overlay = cursorOverlayRef.current;
     if (bounds.length === 0 || !overlay) return;
 
+    // 재생 중 엔진 warmup으로 인한 초기 지연/점프를 흡수 — 커서는 첫 노트 위치를 floor로 유지
+    const effectiveTime = isPlaying
+      ? Math.max(cursorTime, firstNoteTimeRef.current)
+      : cursorTime;
+
     // measureTimes (MIDI 기반) 우선, 없으면 bounds linear fallback
     const times = measureTimesRef.current;
     let measureIdx = 0;
@@ -315,7 +335,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       let lo = 0, hi = Math.min(times.length, bounds.length) - 1;
       while (lo < hi) {
         const mid = (lo + hi + 1) >> 1;
-        if (times[mid].startTime <= cursorTime) lo = mid;
+        if (times[mid].startTime <= effectiveTime) lo = mid;
         else hi = mid - 1;
       }
       measureIdx = lo;
@@ -325,7 +345,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       let lo = 0, hi = bounds.length - 1;
       while (lo < hi) {
         const mid = (lo + hi + 1) >> 1;
-        if (bounds[mid].startTime <= cursorTime) lo = mid;
+        if (bounds[mid].startTime <= effectiveTime) lo = mid;
         else hi = mid - 1;
       }
       measureIdx = lo;
@@ -335,7 +355,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     const m = bounds[Math.min(measureIdx, bounds.length - 1)];
     if (!m) return;
     const progress = endT > startT
-      ? Math.max(0, Math.min(1, (cursorTime - startT) / (endT - startT)))
+      ? Math.max(0, Math.min(1, (effectiveTime - startT) / (endT - startT)))
       : 0;
     const x = m.x + progress * m.width;
     overlay.style.transform = `translateX(${x}px)`;
@@ -351,7 +371,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         viewport.scrollLeft = target;
       }
     }
-  }, [cursorTime, status]);
+  }, [cursorTime, status, isPlaying]);
 
   // 엔진 워밍업 감지: 재생 중인데 cursorTime 이 아직 0 에 가까우면 "준비중" 상태
   const warmingUp = !!(isPlaying && (cursorTime ?? 0) < 0.1);

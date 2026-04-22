@@ -63,3 +63,21 @@ export async function loadMeasureTimes(url: string): Promise<MeasureTime[]> {
 
   return measures;
 }
+
+/**
+ * MIDI 파일에서 첫 노트 시작 시간(초)을 반환.
+ * partName 지정 시 해당 트랙명 매칭, 없으면 전 트랙 중 가장 빠른 노트.
+ */
+export async function getFirstNoteTime(url: string, partName?: string | null): Promise<number | null> {
+  const res = await fetch(url, { cache: "no-cache" });
+  if (!res.ok) return null;
+  const buf = await res.arrayBuffer();
+  const midi = new Midi(buf);
+  let earliest = Infinity;
+  for (const track of midi.tracks) {
+    if (partName && track.name !== partName) continue;
+    const firstNote = track.notes[0];
+    if (firstNote && firstNote.time < earliest) earliest = firstNote.time;
+  }
+  return isFinite(earliest) ? earliest : null;
+}
