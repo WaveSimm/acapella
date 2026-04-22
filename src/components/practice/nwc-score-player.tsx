@@ -22,6 +22,7 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
   const [info, setInfo] = useState<ScoreInfo | null>(null);
   const [highlightPart, setHighlightPart] = useState<string | null>(null);
   const [measureWidth, setMeasureWidth] = useState<number>(DEFAULT_MEASURE_WIDTH);
+  const [isPlaying, setIsPlaying] = useState(false);
 
   // 곡별 마디 폭 저장/복원 — localStorage 키 = musicXmlSrc
   useEffect(() => {
@@ -71,7 +72,7 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
         </div>
       )}
 
-      <div className="flex items-center gap-3 text-xs text-gray-500">
+      <div className={`flex items-center gap-3 text-xs text-gray-500 ${isPlaying ? "opacity-50" : ""}`}>
         <label htmlFor="mw" className="shrink-0">마디 폭</label>
         <input
           id="mw"
@@ -81,7 +82,9 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
           step={1}
           value={measureWidth}
           onChange={(e) => handleMeasureWidth(parseInt(e.target.value, 10))}
-          className="flex-1"
+          disabled={isPlaying}
+          className="flex-1 disabled:cursor-not-allowed"
+          title={isPlaying ? "재생 중에는 변경 불가" : ""}
         />
         <span className="w-8 shrink-0 text-right tabular-nums text-gray-700">{measureWidth}</span>
       </div>
@@ -97,7 +100,10 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
 
       <MidiPlayer
         src={midiSrc}
-        onTimeUpdate={(t) => setCurrentTime(t)}
+        onTimeUpdate={(t, _d, playing) => {
+          setCurrentTime(t);
+          setIsPlaying(playing);
+        }}
         disabled={!info?.playable}
       />
       {!info?.playable && (
