@@ -66,8 +66,10 @@ export async function loadMeasureTimes(url: string): Promise<MeasureTime[]> {
 
 /**
  * MIDI 파일에서 첫 노트 시작 시간(초)을 반환.
- * partName 지정 시 해당 트랙명 매칭 (case-insensitive + trim).
- * 매칭 실패 또는 partName 미지정 시 전 트랙 중 가장 빠른 노트로 fallback.
+ * 우선순위:
+ *   1. partName 매칭 (case-insensitive + trim)
+ *   2. "Alto" 우선 (choir 연습 기본 타깃)
+ *   3. 전 트랙 earliest
  */
 export async function getFirstNoteTime(url: string, partName?: string | null): Promise<number | null> {
   const res = await fetch(url, { cache: "no-cache" });
@@ -80,20 +82,32 @@ export async function getFirstNoteTime(url: string, partName?: string | null): P
   const trackNames = midi.tracks.map((t) => t.name);
   console.log("[getFirstNoteTime] tracks:", trackNames, "target:", partName);
 
-  // 1차: partName 매칭
-  if (target) {
+  const findByName = (name: string): number | null => {
     for (const track of midi.tracks) {
-      if (norm(track.name) !== target) continue;
+      if (norm(track.name) !== name) continue;
       const firstNote = track.notes[0];
-      if (firstNote) {
-        console.log("[getFirstNoteTime] matched", track.name, "→", firstNote.time.toFixed(2));
-        return firstNote.time;
-      }
+      if (firstNote) return firstNote.time;
     }
-    console.log("[getFirstNoteTime] partName match failed, falling back to earliest");
+    return null;
+  };
+
+  if (target) {
+    const t = findByName(target);
+    if (t !== null) {
+      console.log("[getFirstNoteTime] matched partName →", t.toFixed(2));
+      return t;
+    }
+    console.log("[getFirstNoteTime] partName match failed");
   }
 
-  // 2차 fallback: 전 트랙 earliest
+  // Alto 우선
+  const alto = findByName("alto");
+  if (alto !== null) {
+    console.log("[getFirstNoteTime] alto default →", alto.toFixed(2));
+    return alto;
+  }
+
+  // 전 트랙 earliest fallback
   let earliest = Infinity;
   for (const track of midi.tracks) {
     const firstNote = track.notes[0];
