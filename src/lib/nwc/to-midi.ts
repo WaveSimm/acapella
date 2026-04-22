@@ -1,4 +1,4 @@
-import type { ParsedScore, Staff } from "./parser";
+import type { ParsedScore, Staff, MeasureItem } from "./parser";
 import { MIDI_PPQ } from "./parser";
 import { writeMidi } from "midi-file";
 
@@ -52,8 +52,29 @@ function buildStaffTrack(staff: Staff): MidiEvent[] {
   events.push({ deltaTime: 0, meta: true, type: "trackName", text: staff.name });
   events.push({ deltaTime: 0, type: "programChange", channel: midiCh, programNumber: staff.patch });
 
+  // 부분 마디 앞쪽 쉼표 패딩 — to-musicxml.ts 와 정렬 일치 (예: Alto m2 첫 2분쉼표)
+  const tsParts = (staff.timeSig ?? "4/4").split("/").map(Number);
+  const tsNum = tsParts[0] ?? 4;
+  const tsDen = tsParts[1] ?? 4;
+  const ticksPerMeasure = Math.round(MIDI_PPQ * 4 * tsNum / tsDen);
+
+  const flatItems: MeasureItem[] = [];
+  for (const m of staff.measures) {
+    if (m.notes.length === 0) continue; // 빈 마디는 타 스태프의 explicit rest 로 이미 정렬
+    const content = m.notes.reduce((s, n) => s + n.durTicks, 0);
+    if (content > 0 && content < ticksPerMeasure) {
+      flatItems.push({
+        type: "rest",
+        durDivisions: 0,
+        durTicks: ticksPerMeasure - content,
+        durType: "",
+        dots: 0,
+      });
+    }
+    for (const n of m.notes) flatItems.push(n);
+  }
+
   // 타이 노트 병합: 이전 노트가 tied이고 같은 pitches면 duration 합치기
-  const flatItems = staff.measures.flatMap((m) => m.notes);
   const merged: typeof flatItems = [];
   for (const it of flatItems) {
     if (it.type === "note" && merged.length > 0) {

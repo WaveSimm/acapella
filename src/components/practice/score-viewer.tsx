@@ -403,7 +403,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           style={{
             transform: "translateX(-100px)",
             willChange: "transform",
-            opacity: warmingUp ? 0 : 1,
           }}
         />
         {warmingUp && (
