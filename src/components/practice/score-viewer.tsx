@@ -96,10 +96,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           if (!gm) continue;
           const svgEl: SVGGraphicsElement | undefined = gm.Stave?.attrs?.elem || gm.Stave?.element;
           let x = 0, w = 0;
-          // 첫 noteEntry(= staffEntry) 위치 추출 — bar 세로줄 대신 실제 음표/쉼표 위치에 커서 매핑
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const entries = (gm as any).staffEntries ?? (gm as any).StaffEntries ?? [];
-          const firstEntryX = entries[0]?.PositionAndShape?.AbsolutePosition?.x;
           if (svgEl && typeof svgEl.getBoundingClientRect === "function") {
             const r = svgEl.getBoundingClientRect();
             x = r.left - mountRect.left;
@@ -107,8 +103,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           } else {
             // PositionAndShape 는 OSMD 내부 단위 — zoom 반영 필요
             const unitToPx = 10 * zoom;
-            const measureX = gm.PositionAndShape.AbsolutePosition.x * unitToPx;
-            x = typeof firstEntryX === "number" ? firstEntryX * unitToPx : measureX;
+            x = gm.PositionAndShape.AbsolutePosition.x * unitToPx;
             w = gm.PositionAndShape.Size.width * unitToPx;
           }
           const measureIdx = bounds.length;
@@ -116,13 +111,6 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           bounds.push({ x, width: w, startTime, endTime: startTime + secPerMeasure });
         }
       }
-    }
-
-    // width 재조정: 각 bound 의 너비를 다음 bound 시작까지 — 선형 시간 보간 유지
-    for (let i = 0; i < bounds.length - 1; i++) {
-      const next = bounds[i + 1];
-      const w = next.x - bounds[i].x;
-      if (w > 0) bounds[i].width = w;
     }
 
     // Fallback: API 경로가 달라서 실패했을 때만 전체 너비 균등 분할
