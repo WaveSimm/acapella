@@ -51,6 +51,7 @@ export interface NoteItem {
   slurEvent?: "start" | "stop"; // MusicXML <slur> 태그용
   tripletMark?: "first" | "middle" | "end"; // 3연음 경계 표시
   lyric?: LyricSyllable;
+  isGrace?: boolean; // 장식음 — 악보에만 표시, MIDI 미출력, 마디 duration 미차지
 }
 
 export interface RestItem {
@@ -249,6 +250,7 @@ function durToData(durStr: string) {
   let dots = 0;
   let tied = false;
   let slur = false;
+  let isGrace = false;
   let tripletMark: "first" | "middle" | "end" | null = null;
   const applyTriplet = () => {
     midiTicks = Math.floor(midiTicks * 2 / 3);
@@ -276,7 +278,14 @@ function durToData(durStr: string) {
       tied = true;
     } else if (opt === "Slur") {
       slur = true;
+    } else if (opt === "Grace") {
+      isGrace = true;
     }
+  }
+  // 장식음은 마디 시간/MIDI 에서 제외
+  if (isGrace) {
+    midiTicks = 0;
+    divisions = 0;
   }
   return {
     durTicks: midiTicks,
@@ -285,6 +294,7 @@ function durToData(durStr: string) {
     dots,
     tied,
     slur,
+    isGrace,
     tripletMark,
   };
 }
@@ -459,6 +469,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         dots: d.dots,
         tied: d.tied || pp.tied,
         slur: d.slur,
+        isGrace: d.isGrace,
         tripletMark: d.tripletMark ?? undefined,
       });
     } else if (cmd === "Chord" && current && currentMeasure) {
@@ -483,6 +494,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         dots: d.dots,
         tied: d.tied || anyTied,
         slur: d.slur,
+        isGrace: d.isGrace,
         tripletMark: d.tripletMark ?? undefined,
       });
     } else if (cmd === "Rest" && current && currentMeasure) {

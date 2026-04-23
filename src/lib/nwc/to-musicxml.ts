@@ -124,16 +124,18 @@ export function buildMusicXml(parsed: ParsedScore): string {
           for (let pi = 0; pi < n.pitches.length; pi++) {
             const p = n.pitches[pi];
             const parts: string[] = [];
+            // 장식음: <grace/> 가 가장 먼저, <duration> 은 생략
+            if (n.isGrace) parts.push("<grace/>");
             if (pi > 0) parts.push("<chord/>");
             parts.push("<pitch>");
             parts.push(`<step>${p.step}</step>`);
             if (p.alter) parts.push(`<alter>${p.alter}</alter>`);
             parts.push(`<octave>${p.octave}</octave>`);
             parts.push("</pitch>");
-            parts.push(`<duration>${n.durDivisions}</duration>`);
-            // <tie> 음악 요소 — stop 먼저, start 나중 (MusicXML 순서)
-            if (thisStopsTie) parts.push('<tie type="stop"/>');
-            if (thisStartsTie) parts.push('<tie type="start"/>');
+            if (!n.isGrace) parts.push(`<duration>${n.durDivisions}</duration>`);
+            // <tie> 음악 요소 — stop 먼저, start 나중 (MusicXML 순서). 장식음엔 tie 없음
+            if (!n.isGrace && thisStopsTie) parts.push('<tie type="stop"/>');
+            if (!n.isGrace && thisStartsTie) parts.push('<tie type="start"/>');
             parts.push(`<type>${n.durType}</type>`);
             for (let d = 0; d < (n.dots || 0); d++) parts.push("<dot/>");
             // 3연음: time-modification = 3 in the time of 2
@@ -149,8 +151,8 @@ export function buildMusicXml(parsed: ParsedScore): string {
             if (pi === 0) {
               const notations: string[] = [];
               if (n.slurEvent) notations.push(`<slur type="${n.slurEvent}" number="1"/>`);
-              if (thisStopsTie) notations.push(`<tied type="stop"/>`);
-              if (thisStartsTie) notations.push(`<tied type="start"/>`);
+              if (!n.isGrace && thisStopsTie) notations.push(`<tied type="stop"/>`);
+              if (!n.isGrace && thisStartsTie) notations.push(`<tied type="start"/>`);
               if (n.tripletMark === "first") notations.push(`<tuplet type="start" number="1" bracket="yes"/>`);
               if (n.tripletMark === "end") notations.push(`<tuplet type="stop" number="1"/>`);
               if (notations.length > 0) parts.push(`<notations>${notations.join("")}</notations>`);
@@ -160,7 +162,8 @@ export function buildMusicXml(parsed: ParsedScore): string {
             }
             lines.push(`      <note>${parts.join("")}</note>`);
           }
-          prevTied = thisStartsTie;
+          // 장식음은 tie chain 에 참여 안 함 — prevTied 유지
+          if (!n.isGrace) prevTied = thisStartsTie;
         }
       }
       lines.push(`    </measure>`);

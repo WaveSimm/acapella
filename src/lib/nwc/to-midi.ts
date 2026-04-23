@@ -81,7 +81,11 @@ function buildStaffTrack(staff: Staff): MidiEvent[] {
         dots: 0,
       });
     }
-    for (const n of m.notes) flatItems.push(n);
+    // 장식음은 MIDI 타이밍/재생에서 제외 (악보에만 표시)
+    for (const n of m.notes) {
+      if (n.type === "note" && n.isGrace) continue;
+      flatItems.push(n);
+    }
   }
 
   // 타이 노트 병합: 이전 노트가 tied이고 같은 pitches면 duration 합치기
