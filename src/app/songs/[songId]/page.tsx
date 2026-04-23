@@ -31,6 +31,17 @@ export default async function SongDetailPage({ params }: Props) {
   });
   if (!song) notFound();
 
+  const nwcMidi = song.resources.find((r) => r.sourceSite === "NWC 변환" && r.resourceType === "MIDI");
+  const nwcScore = song.resources.find((r) => r.sourceSite === "NWC 변환" && r.resourceType === "SCORE_PREVIEW");
+  const hasNwc = !!(nwcMidi && nwcScore);
+
+  // NWC 있으면 MIDI 숨김 + NWC 내부 MusicXML 도 다운로드 리스트에서 제외
+  const fileListResources = song.resources.filter((r) => {
+    if (r.resourceType === "MIDI") return !hasNwc;
+    if (r.resourceType === "SCORE_PREVIEW") return r.sourceSite !== "NWC 변환";
+    return false;
+  });
+
   return (
     <div>
       <nav className="mb-4 text-sm">
@@ -74,48 +85,39 @@ export default async function SongDetailPage({ params }: Props) {
         />
       </section>
 
-      {(() => {
-        const nwcMidi = song.resources.find((r) => r.sourceSite === "NWC 변환" && r.resourceType === "MIDI");
-        const nwcScore = song.resources.find((r) => r.sourceSite === "NWC 변환" && r.resourceType === "SCORE_PREVIEW");
-        const hasNwc = !!(nwcMidi && nwcScore);
-        const songResources = (hasNwc
-          ? song.resources.filter((r) => r.resourceType !== "MIDI")
-          : song.resources
-        ).map((r) => ({
-          id: r.id,
-          part: r.part,
-          resourceType: r.resourceType,
-          url: r.url,
-          label: r.label,
-          sourceSite: r.sourceSite,
-        }));
-        return (
-          <>
-            {hasNwc && nwcMidi && nwcScore && (
-              <section className="mt-6">
-                <h2 className="mb-3 text-sm font-semibold text-gray-700">악보 연동 연습 (NWC)</h2>
-                <NwcScorePlayer midiSrc={nwcMidi.url} musicXmlSrc={nwcScore.url} />
-              </section>
-            )}
-            <section className="mt-6">
-              <h2 className="mb-3 text-sm font-semibold text-gray-700">파트별 연습</h2>
-              <SongPlayer resources={songResources} />
-            </section>
-          </>
-        );
-      })()}
+      {hasNwc && nwcMidi && nwcScore && (
+        <section className="mt-6">
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">악보 연동 연습 (NWC)</h2>
+          <NwcScorePlayer midiSrc={nwcMidi.url} musicXmlSrc={nwcScore.url} />
+        </section>
+      )}
+
+      <section className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold text-gray-700">파트별 연습</h2>
+        <SongPlayer
+          resources={(hasNwc
+            ? song.resources.filter((r) => r.resourceType !== "MIDI")
+            : song.resources
+          ).map((r) => ({
+            id: r.id,
+            part: r.part,
+            resourceType: r.resourceType,
+            url: r.url,
+            label: r.label,
+            sourceSite: r.sourceSite,
+          }))}
+        />
+      </section>
 
       <section className="mt-6">
         <NwcUploader songId={song.id} />
       </section>
 
-      {song.resources.some((r) => r.resourceType === "SCORE_PREVIEW" || r.resourceType === "MIDI") && (
+      {fileListResources.length > 0 && (
         <section className="mt-6 rounded-xl border border-gray-200 bg-white p-5">
           <h2 className="mb-3 text-sm font-semibold text-gray-700">악보 · MIDI</h2>
           <ul className="space-y-1.5 text-sm">
-            {song.resources
-              .filter((r) => r.resourceType === "SCORE_PREVIEW" || r.resourceType === "MIDI")
-              .map((r) => (
+            {fileListResources.map((r) => (
                 <li key={r.id} className="flex items-center gap-2">
                   <span
                     className={`rounded px-1.5 py-0.5 text-[10px] font-medium ${
