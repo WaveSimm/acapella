@@ -47,3 +47,6 @@ scripts/score-analysis/*.mp4
 .env.vercel.local
 
 .env*.local
+
+# DB full backups (contain OAuth tokens + binaries) — 로컬 보관만
+backups/db-full-*.json
