@@ -75,16 +75,7 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // 원본 NWC 저장
-    const nwcFile = await tx.uploadedFile.create({
-      data: {
-        fileName: file.name,
-        mimeType: "application/x-nwc",
-        size: buf.length,
-        data: buf,
-        conductorId: user.id,
-      },
-    });
+    // 원본 NWC 는 저장하지 않음 — 파싱 후 버림 (PracticeResource로 참조되지 않아 누적됨)
     // 생성된 MIDI 저장 + PracticeResource
     const midiFile = await tx.uploadedFile.create({
       data: {
@@ -130,7 +121,7 @@ export async function POST(request: NextRequest) {
         fileId: xmlFile.id,
       },
     });
-    return { nwcFile, midiFile, midiResource, xmlFile, xmlResource };
+    return { midiFile, midiResource, xmlFile, xmlResource };
   });
 
   return NextResponse.json({
@@ -144,6 +135,5 @@ export async function POST(request: NextRequest) {
     },
     midiFile: { id: result.midiFile.id, size: result.midiFile.size, resourceId: result.midiResource.id },
     musicXmlFile: { id: result.xmlFile.id, size: result.xmlFile.size, resourceId: result.xmlResource.id },
-    nwcFile: { id: result.nwcFile.id, size: result.nwcFile.size },
   }, { status: 201 });
 }
