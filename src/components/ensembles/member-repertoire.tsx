@@ -82,12 +82,19 @@ export function MemberRepertoire({ items }: { items: Item[] }) {
                       const nwcScore = item.song.resources.find(
                         (r) => r.sourceSite === "NWC 변환" && r.resourceType === "SCORE_PREVIEW",
                       );
-                      if (nwcMidi && nwcScore) {
-                        return <NwcScorePlayer midiSrc={nwcMidi.url} musicXmlSrc={nwcScore.url} />;
-                      }
-                      return null;
+                      const hasNwc = !!(nwcMidi && nwcScore);
+                      const songResources = hasNwc
+                        ? item.song.resources.filter((r) => r.resourceType !== "MIDI")
+                        : item.song.resources;
+                      return (
+                        <>
+                          {hasNwc && nwcMidi && nwcScore && (
+                            <NwcScorePlayer midiSrc={nwcMidi.url} musicXmlSrc={nwcScore.url} />
+                          )}
+                          <SongPlayer resources={songResources} />
+                        </>
+                      );
                     })()}
-                    <SongPlayer resources={item.song.resources} />
                   </div>
                 ) : (
                   <p className="rounded-lg border border-dashed border-gray-300 p-6 text-center text-sm text-gray-400">

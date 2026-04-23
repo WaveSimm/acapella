@@ -74,29 +74,34 @@ export default async function SongDetailPage({ params }: Props) {
         />
       </section>
 
-      <section className="mt-6">
-        <h2 className="mb-3 text-sm font-semibold text-gray-700">파트별 연습</h2>
-        <SongPlayer
-          resources={song.resources.map((r) => ({
-            id: r.id,
-            part: r.part,
-            resourceType: r.resourceType,
-            url: r.url,
-            label: r.label,
-            sourceSite: r.sourceSite,
-          }))}
-        />
-      </section>
-
       {(() => {
         const nwcMidi = song.resources.find((r) => r.sourceSite === "NWC 변환" && r.resourceType === "MIDI");
         const nwcScore = song.resources.find((r) => r.sourceSite === "NWC 변환" && r.resourceType === "SCORE_PREVIEW");
-        if (!nwcMidi || !nwcScore) return null;
+        const hasNwc = !!(nwcMidi && nwcScore);
+        const songResources = (hasNwc
+          ? song.resources.filter((r) => r.resourceType !== "MIDI")
+          : song.resources
+        ).map((r) => ({
+          id: r.id,
+          part: r.part,
+          resourceType: r.resourceType,
+          url: r.url,
+          label: r.label,
+          sourceSite: r.sourceSite,
+        }));
         return (
-          <section className="mt-6">
-            <h2 className="mb-3 text-sm font-semibold text-gray-700">악보 연동 연습 (NWC)</h2>
-            <NwcScorePlayer midiSrc={nwcMidi.url} musicXmlSrc={nwcScore.url} />
-          </section>
+          <>
+            {hasNwc && nwcMidi && nwcScore && (
+              <section className="mt-6">
+                <h2 className="mb-3 text-sm font-semibold text-gray-700">악보 연동 연습 (NWC)</h2>
+                <NwcScorePlayer midiSrc={nwcMidi.url} musicXmlSrc={nwcScore.url} />
+              </section>
+            )}
+            <section className="mt-6">
+              <h2 className="mb-3 text-sm font-semibold text-gray-700">파트별 연습</h2>
+              <SongPlayer resources={songResources} />
+            </section>
+          </>
         );
       })()}
 
