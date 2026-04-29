@@ -50,3 +50,6 @@ scripts/score-analysis/*.mp4
 
 # DB full backups (contain OAuth tokens + binaries) — 로컬 보관만
 backups/db-full-*.json
+
+# 진단 스크립트의 임시 출력 (NWC/MIDI/MusicXML 검증용)
+scripts/_out/

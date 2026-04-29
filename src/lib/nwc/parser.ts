@@ -37,7 +37,10 @@ export interface Pitch {
 export interface LyricSyllable {
   text: string;
   syllabic: "single" | "begin" | "middle" | "end";
+  extend?: boolean; // 다음 노트(들)로 멜리스마 연장 — MusicXML <extend/> emit
 }
+
+export type Articulation = "staccato" | "accent" | "tenuto" | "marcato" | "staccatissimo";
 
 export interface NoteItem {
   type: "note";
@@ -52,9 +55,15 @@ export interface NoteItem {
   tripletMark?: "first" | "middle" | "end"; // 3연음 경계 표시
   lyric?: LyricSyllable;
   isGrace?: boolean; // 장식음 — 악보에만 표시, MIDI 미출력, 마디 duration 미차지
+  fermata?: boolean;                 // 페르마타 (NWC TempoVariance|Style:Fermata)
+  fermataPause?: number;             // 페르마타 추가 지속 (NWC Pause 단위 — MIDI 길이 확장에 사용)
+  articulations?: Articulation[];    // 스타카토/액센트/테뉴토 등
 }
 
 export interface RestItem {
+  // NWC: |Rest|Dur:Whole 은 "마디 전체 쉼" 관습 (실제 4박 길이가 아님).
+  // 6/8, 5/4 등에서도 Dur:Whole 로 표기하므로 시간표 기반 측정 길이로 확장.
+  isMeasureRest?: boolean;
   type: "rest";
   durDivisions: number;
   durTicks: number;
@@ -73,6 +82,23 @@ export interface KeyChange {
   fifths: number;
 }
 
+export interface TimeSigChange {
+  measureNumber: number; // 변경이 적용될 마디 번호 (1-based)
+  sig: string;           // 정규화된 박자 (예: "6/8", "4/4")
+}
+
+export interface TempoChange {
+  measureNumber: number; // 1-based
+  noteOffset: number;    // 마디 시작부터 몇 번째 노트(0=첫 노트 위치) — 출력 단순화 위해 마디 시작에 배치
+  bpm: number;           // 분당 4분음표 비트 수 (NWC base 변환 후)
+}
+
+export interface TextDirection {
+  measureNumber: number; // 1-based
+  text: string;          // 표시할 문구
+  italic?: boolean;      // StaffItalic 여부
+}
+
 export interface Staff {
   name: string;
   label: string;
@@ -83,19 +109,146 @@ export interface Staff {
   clef: string;
   keySig: Record<string, number>;  // 현재(pitch 계산용) - 중간 전조로 갱신됨
   fifths: number;                  // 초기 조성 (MusicXML 첫 마디 표시용) - 한 번만 설정
-  timeSig: string;
+  timeSig: string;                 // 초기 박자 (한 번만 설정)
   octaveShift: number;
   measures: Measure[];
   keyChanges: KeyChange[];         // mid-score 조성 변화
+  timeSigChanges: TimeSigChange[]; // mid-score 변박
+  tempoChanges: TempoChange[];     // mid-score 템포 변화
+  textDirections: TextDirection[]; // 무대 지시문 (예: "slow with rubato")
   lyricRaw?: string;
   hidden?: boolean;
   _initialKeySet?: boolean;
+  _initialTimeSigSet?: boolean;
 }
 
 function normalizeTimeSig(sig: string): string {
   if (sig === "AllaBreve") return "2/2";
   if (sig === "Common") return "4/4";
   return sig;
+}
+
+// NWC Note/Chord 의 Opts 필드(콤마 구분)에서 articulation 추출.
+// 예: "Stem=Down,Beam=First,Staccato" → ["staccato"]. 알 수 없는 토큰은 무시.
+function applyArticulationsFromOpts(note: NoteItem, optsRaw: string | undefined | true): void {
+  if (typeof optsRaw !== "string") return;
+  const map: Record<string, Articulation> = {
+    Staccato: "staccato",
+    Staccatissimo: "staccatissimo",
+    Accent: "accent",
+    Tenuto: "tenuto",
+    Marcato: "marcato",
+  };
+  const acc: Articulation[] = [];
+  for (const tok of optsRaw.split(",")) {
+    const t = tok.trim();
+    if (map[t]) acc.push(map[t]);
+  }
+  if (acc.length > 0) note.articulations = acc;
+}
+
+// 노트 경계에서 깔끔히 분할 가능한 overflow 마디를 분할.
+// 케이스: 작성자가 |Bar| 마커를 빠뜨려 한 마디에 두 마디분 노트가 들어간 경우.
+// keyChanges/timeSigChanges 의 measureNumber 도 시프트.
+function splitOverflowingMeasures(staff: Staff): void {
+  // 1) 분할 전 각 마디의 effective time sig 미리 계산
+  const sigs: string[] = [];
+  let cur = staff.timeSig;
+  for (let i = 0; i < staff.measures.length; i++) {
+    const measureNum = i + 1;
+    const tc = staff.timeSigChanges.find((c) => c.measureNumber === measureNum);
+    if (tc) cur = tc.sig;
+    sigs.push(cur);
+  }
+
+  // 2) 새 마디 배열 생성 + remap 테이블 (oldIdx → newStartMeasureNum 1-based)
+  const newMeasures: Measure[] = [];
+  const remap: number[] = [];
+
+  for (let oldIdx = 0; oldIdx < staff.measures.length; oldIdx++) {
+    remap[oldIdx] = newMeasures.length + 1;
+    const m = staff.measures[oldIdx];
+    const [n, d] = sigs[oldIdx].split("/").map(Number);
+    if (!n || !d) {
+      newMeasures.push(m);
+      continue;
+    }
+    const measureDur = Math.round(XML_DIVISIONS * 4 * n / d);
+
+    // 장식음(grace)은 시간 차지 안 함 — 합산 대상 제외
+    let total = 0;
+    for (const note of m.notes) {
+      if (note.type === "note" && note.isGrace) continue;
+      total += note.durDivisions;
+    }
+
+    if (total <= measureDur) {
+      newMeasures.push(m);
+      continue;
+    }
+
+    // 3) 노트 경계에서 splits 시도 — 노트가 경계를 가로지르면 분할 불가 (원본 유지)
+    const splits: MeasureItem[][] = [[]];
+    let bucketDur = 0;
+    let cleanSplit = true;
+    for (const note of m.notes) {
+      const dur = (note.type === "note" && note.isGrace) ? 0 : note.durDivisions;
+      const remaining = measureDur - bucketDur;
+      if (dur === 0 || dur <= remaining) {
+        splits[splits.length - 1].push(note);
+        bucketDur += dur;
+        if (bucketDur === measureDur) {
+          splits.push([]);
+          bucketDur = 0;
+        }
+      } else {
+        cleanSplit = false;
+        break;
+      }
+    }
+    if (!cleanSplit) {
+      newMeasures.push(m);
+      continue;
+    }
+    // 마지막 빈 버킷 정리
+    if (splits[splits.length - 1].length === 0) splits.pop();
+    if (splits.length === 1) {
+      newMeasures.push(m);
+      continue;
+    }
+    for (const bucket of splits) newMeasures.push({ notes: bucket });
+  }
+
+  // 4) keyChanges / timeSigChanges / tempoChanges / textDirections measureNumber 재맵핑
+  staff.measures = newMeasures;
+  staff.keyChanges = staff.keyChanges.map((kc) => ({
+    ...kc,
+    measureNumber: remap[kc.measureNumber - 1] ?? kc.measureNumber,
+  }));
+  staff.timeSigChanges = staff.timeSigChanges.map((tc) => ({
+    ...tc,
+    measureNumber: remap[tc.measureNumber - 1] ?? tc.measureNumber,
+  }));
+  staff.tempoChanges = staff.tempoChanges.map((tc) => ({
+    ...tc,
+    measureNumber: remap[tc.measureNumber - 1] ?? tc.measureNumber,
+  }));
+  staff.textDirections = staff.textDirections.map((td) => ({
+    ...td,
+    measureNumber: remap[td.measureNumber - 1] ?? td.measureNumber,
+  }));
+}
+
+// 현재 작성 중인 마디의 effective time signature 계산.
+// staff.measures.length 가 1-based 현재 마디 번호와 같음 (AddStaff 시 빈 마디 1개 push 후 시작).
+function effectiveTimeSig(staff: { timeSig: string; timeSigChanges: { measureNumber: number; sig: string }[]; measures: { notes: unknown[] }[] }): { num: number; den: number } {
+  let sig = staff.timeSig;
+  const curMeasureNum = staff.measures.length;
+  for (const tc of staff.timeSigChanges) {
+    if (tc.measureNumber <= curMeasureNum) sig = tc.sig;
+  }
+  const [n, d] = sig.split("/").map(Number);
+  return { num: n || 4, den: d || 4 };
 }
 
 // NWC Tempo: "Base:Half|Tempo:63" 이면 half note = 63 BPM → quarter-note BPM = 126
@@ -374,6 +527,8 @@ export function parseNwc(input: Buffer | string): ParsedScore {
   let timeSigFound = false;
   let current: Staff | null = null;
   let currentMeasure: Measure | null = null;
+  // 페르마타 with Placement:AtNextNote → 다음 노트가 들어올 때 적용
+  let pendingFermata: { pause: number } | null = null;
 
   for (const { cmd, props } of lines) {
     const p = props as Record<string, string>;
@@ -381,10 +536,49 @@ export function parseNwc(input: Buffer | string): ParsedScore {
       score.songTitle = decodeKorean(p.Title || "");
       score.composer = decodeKorean(p.Author || "");
     } else if (cmd === "Tempo") {
+      const rawTempo = parseInt(p.Tempo, 10) || 120;
+      const bpm = Math.round(resolveTempo(p.Base, rawTempo));
       if (!tempoFound) {
-        const rawTempo = parseInt(p.Tempo, 10) || 120;
-        score.tempo = Math.round(resolveTempo(p.Base, rawTempo));
+        score.tempo = bpm;
         tempoFound = true;
+      }
+      if (current) {
+        // 직전 효과 템포와 다를 때만 기록 (NWC 가 staff 헤더에 초기 템포 재선언하는 경우 dedup)
+        const lastBpm = current.tempoChanges.length > 0
+          ? current.tempoChanges[current.tempoChanges.length - 1].bpm
+          : score.tempo;
+        if (bpm !== lastBpm) {
+          current.tempoChanges.push({
+            measureNumber: current.measures.length,
+            noteOffset: currentMeasure?.notes.length ?? 0,
+            bpm,
+          });
+        }
+      }
+    } else if (cmd === "TempoVariance" && current && currentMeasure) {
+      // 페르마타: AtNextNote → 이후 첫 노트에 적용. 없으면 직전 노트에 적용.
+      if (p.Style === "Fermata") {
+        const pause = parseFloat(p.Pause as string) || 0;
+        if (p.Placement === "AtNextNote") {
+          // 이 시점에 currentMeasure 가 비어있더라도 이후 들어올 첫 노트에 적용 — pendingFermata 사용
+          pendingFermata = { pause };
+        } else {
+          // 직전 노트에 적용
+          const last = [...currentMeasure.notes].reverse().find((n) => n.type === "note");
+          if (last && last.type === "note") {
+            last.fermata = true;
+            last.fermataPause = pause;
+          }
+        }
+      }
+    } else if (cmd === "Text" && current) {
+      const txt = decodeKorean(p.Text || "").replace(/^"|"$/g, "");
+      if (txt) {
+        current.textDirections.push({
+          measureNumber: current.measures.length,
+          text: txt,
+          italic: typeof p.Font === "string" && /Italic/i.test(p.Font),
+        });
       }
     } else if (cmd === "Key") {
       const parsed = parseKeySig(p.Signature);
@@ -412,7 +606,24 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         score.timeSig = norm;
         timeSigFound = true;
       }
-      if (current) current.timeSig = norm;
+      if (current) {
+        if (!current._initialTimeSigSet) {
+          current.timeSig = norm;
+          current._initialTimeSigSet = true;
+        } else {
+          // mid-score 변박 — 직전 유효 박자와 다를 때만 기록 (NWC 가 같은 박자를
+          // 섹션 경계마다 재선언하는 경우 무의미한 <time> 중복 출력 방지)
+          const lastEffective = current.timeSigChanges.length > 0
+            ? current.timeSigChanges[current.timeSigChanges.length - 1].sig
+            : current.timeSig;
+          if (norm !== lastEffective) {
+            current.timeSigChanges.push({
+              measureNumber: current.measures.length,
+              sig: norm,
+            });
+          }
+        }
+      }
     } else if (cmd === "AddStaff") {
       current = {
         name: decodeKorean(p.Name || "Staff" + score.staves.length),
@@ -428,6 +639,9 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         octaveShift: 0,
         measures: [],
         keyChanges: [],
+        timeSigChanges: [],
+        tempoChanges: [],
+        textDirections: [],
       };
       score.staves.push(current);
       currentMeasure = { notes: [] };
@@ -460,7 +674,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
       const so = posToStepOctave(pp.pos, clefCenter(current.clef), current.octaveShift);
       let alter = pp.alter;
       if (alter === null && current.keySig[so.step] !== undefined) alter = current.keySig[so.step];
-      currentMeasure.notes.push({
+      const note: NoteItem = {
         type: "note",
         pitches: [{ step: so.step, octave: so.octave, alter: alter ?? 0, explicitAccidental: pp.alter }],
         durDivisions: d.durDivisions,
@@ -471,7 +685,14 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         slur: d.slur,
         isGrace: d.isGrace,
         tripletMark: d.tripletMark ?? undefined,
-      });
+      };
+      applyArticulationsFromOpts(note, p.Opts);
+      if (pendingFermata && !note.isGrace) {
+        note.fermata = true;
+        note.fermataPause = pendingFermata.pause;
+        pendingFermata = null;
+      }
+      currentMeasure.notes.push(note);
     } else if (cmd === "Chord" && current && currentMeasure) {
       const pps = (p.Pos || "").split(",").map(parsePos).filter((x): x is ParsedPos => !!x);
       if (pps.length === 0) continue;
@@ -485,7 +706,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         return { step: so.step, octave: so.octave, alter: alter ?? 0, explicitAccidental: pp.alter };
       });
       const anyTied = pps.some((pp) => pp.tied);
-      currentMeasure.notes.push({
+      const note: NoteItem = {
         type: "note",
         pitches,
         durDivisions: d.durDivisions,
@@ -496,17 +717,46 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         slur: d.slur,
         isGrace: d.isGrace,
         tripletMark: d.tripletMark ?? undefined,
-      });
+      };
+      applyArticulationsFromOpts(note, p.Opts);
+      if (pendingFermata && !note.isGrace) {
+        note.fermata = true;
+        note.fermataPause = pendingFermata.pause;
+        pendingFermata = null;
+      }
+      currentMeasure.notes.push(note);
     } else if (cmd === "Rest" && current && currentMeasure) {
       const d = durToData(p.Dur);
-      currentMeasure.notes.push({
-        type: "rest",
-        durDivisions: d.durDivisions,
-        durTicks: d.durTicks,
-        durType: d.durType,
-        dots: d.dots,
-      });
+      // NWC: |Rest|Dur:Whole 은 박자 무관 "마디 전체 쉼". 6/8, 5/4 등에서도 사용.
+      // 실제 길이를 시간표 기반 마디 길이로 보정.
+      if (p.Dur === "Whole") {
+        const { num, den } = effectiveTimeSig(current);
+        const measureDiv = Math.round(XML_DIVISIONS * 4 * num / den);
+        const measureTicks = Math.round(MIDI_PPQ * 4 * num / den);
+        currentMeasure.notes.push({
+          type: "rest",
+          durDivisions: measureDiv,
+          durTicks: measureTicks,
+          durType: "whole",
+          dots: 0,
+          isMeasureRest: true,
+        });
+      } else {
+        currentMeasure.notes.push({
+          type: "rest",
+          durDivisions: d.durDivisions,
+          durTicks: d.durTicks,
+          durType: d.durType,
+          dots: d.dots,
+        });
+      }
     }
+  }
+
+  // Bar 마커 누락으로 측정값을 초과한 마디 자동 분할 (예: NWC 작성자가 두 마디를 한 마디로 묶어 적은 경우).
+  // 깔끔하게 노트 경계에서 분할 가능할 때만 수행하고, keyChanges/timeSigChanges measureNumber 도 같이 재배치.
+  for (const staff of score.staves) {
+    splitOverflowingMeasures(staff);
   }
 
   // 각 스태프의 가사를 노트에 매핑 (파싱이 끝난 후)
@@ -522,6 +772,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
     for (const m of staff.measures) {
       for (const n of m.notes) {
         if (n.type !== "note") continue;
+        if (n.isGrace) continue; // 장식음은 슬러 체인에 참여 안 함
         if (!inSlur && n.slur) {
           n.slurEvent = "start";
           inSlur = true;
@@ -532,12 +783,23 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         // 중간 노트 또는 밖 노트: 이벤트 없음
       }
     }
-    // 남은 열린 슬러는 마지막 노트에 stop 붙여 닫기
+    // 남은 열린 슬러는 마지막 noㅏ장식음 노트에 stop 붙여 닫기
     if (inSlur) {
-      const allNotes = staff.measures.flatMap((m) => m.notes).filter((n) => n.type === "note");
+      const allNotes = staff.measures.flatMap((m) => m.notes).filter((n) => n.type === "note" && !n.isGrace);
       const last = allNotes[allNotes.length - 1];
       if (last && last.type === "note" && !last.slurEvent) last.slurEvent = "stop";
     }
+  }
+
+  // 숨김 스태프의 score-wide 메타 (템포 변화) 를 첫 번째 visible staff 에 이전 — drop 전에.
+  // 예: NWC 파일이 Vocal Percussion (hidden) staff 에 |Tempo| 모두 모아둔 경우.
+  const firstVisible = score.staves.find((s) => !s.hidden);
+  if (firstVisible) {
+    for (const s of score.staves) {
+      if (!s.hidden) continue;
+      for (const tc of s.tempoChanges) firstVisible.tempoChanges.push(tc);
+    }
+    firstVisible.tempoChanges.sort((a, b) => a.measureNumber - b.measureNumber);
   }
 
   // 숨김(Visible:N) 스태프 제외
@@ -571,7 +833,15 @@ function tokenizeLyrics(raw: string): SyllableToken[] {
   for (let i = 0; i < unescaped.length; i++) {
     const c = unescaped[i];
     if (c === " " || c === "\t") flush(false);
-    else if (c === "-") flush(true);
+    else if (c === "-") {
+      // 부착 대시 (예: "stand-in") → 음절 연결 표시 (continuation=true)
+      // 독립 대시 (예: "out - - - -") → 앞 음절을 다음 음표로 연장 (extension)
+      if (buf.length > 0) {
+        flush(true);
+      } else {
+        tokens.push({ text: "-", continuation: false, extension: true });
+      }
+    }
     else if (c === "_") {
       flush(false);
       tokens.push({ text: "_", continuation: false, extension: true });
@@ -586,20 +856,28 @@ function tokenizeLyrics(raw: string): SyllableToken[] {
 function assignLyricsToNotes(staff: Staff, syllables: SyllableToken[]) {
   let si = 0;
   let prevContinuation = false;
-  let prevNoteSharesToNext = false; // 이전 노트의 slur/tied → 현재 노트는 이전과 같은 syllable (melisma)
+  // 가사 공유 규칙:
+  // - 붙임줄(tied, ^) / 이음줄(slur): 다음 노트는 가사 없이 멜리스마로 공유
+  // - 장식음(grace): 가사 슬롯 차지 안 함, 체인에도 참여 안 함
+  let prevSharesToNext = false;
+  let lastLyricNote: NoteItem | null = null;
   for (const m of staff.measures) {
     for (const n of m.notes) {
       if (n.type !== "note") continue;
-      if (prevNoteSharesToNext) {
-        // 현재 노트는 이전 syllable 유지. lyric 할당 없음.
-        prevNoteSharesToNext = n.slur || n.tied;
+      if (n.isGrace) continue; // 장식음은 가사 분배에서 제외
+      if (prevSharesToNext) {
+        // 타이/슬러 연속 노트 — 가사 없음, 직전 lyric 노트에 extend 표시 (멜리스마 라인)
+        if (lastLyricNote?.lyric) lastLyricNote.lyric.extend = true;
+        prevSharesToNext = n.tied || n.slur;
         continue;
       }
       if (si >= syllables.length) return;
       const syl = syllables[si];
       if (syl.extension) {
+        // 연장 마커(- 또는 _) — 현재 노트는 가사 없이 통과, 직전 lyric 노트에 extend 표시
+        if (lastLyricNote?.lyric) lastLyricNote.lyric.extend = true;
         si++;
-        prevNoteSharesToNext = n.slur || n.tied;
+        prevSharesToNext = n.tied || n.slur;
         continue;
       }
       let syllabic: LyricSyllable["syllabic"];
@@ -608,8 +886,9 @@ function assignLyricsToNotes(staff: Staff, syllables: SyllableToken[]) {
       else if (!prevContinuation && syl.continuation) syllabic = "begin";
       else syllabic = "single";
       n.lyric = { text: syl.text, syllabic };
+      lastLyricNote = n;
       prevContinuation = syl.continuation;
-      prevNoteSharesToNext = n.slur || n.tied;
+      prevSharesToNext = n.tied || n.slur;
       si++;
     }
   }
