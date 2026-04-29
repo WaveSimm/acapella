@@ -212,7 +212,8 @@ export function buildMusicXml(parsed: ParsedScore): string {
             if (pi > 0) parts.push("<chord/>");
             parts.push("<pitch>");
             parts.push(`<step>${p.step}</step>`);
-            if (p.alter) parts.push(`<alter>${p.alter}</alter>`);
+            // alter=0 도 명시적 emit — 일부 렌더러는 alter 없음 → key sig 기본값 적용 버그가 있음.
+            parts.push(`<alter>${p.alter}</alter>`);
             parts.push(`<octave>${p.octave}</octave>`);
             parts.push("</pitch>");
             if (!n.isGrace) parts.push(`<duration>${n.durDivisions}</duration>`);
