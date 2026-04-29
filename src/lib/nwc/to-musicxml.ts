@@ -197,7 +197,19 @@ export function buildMusicXml(parsed: ParsedScore): string {
             lines.push(`      <note><rest measure="yes"/><duration>${n.durDivisions}</duration></note>`);
           } else {
             const dots = "<dot/>".repeat(n.dots || 0);
-            lines.push(`      <note><rest/><duration>${n.durDivisions}</duration><type>${n.durType}</type>${dots}</note>`);
+            const parts: string[] = [`<rest/>`, `<duration>${n.durDivisions}</duration>`, `<type>${n.durType}</type>`];
+            for (let d = 0; d < (n.dots || 0); d++) parts.push("<dot/>");
+            // 셋잇단음표 처리 — Rest 도 triplet 그룹에 포함 가능
+            if (n.tripletMark) {
+              parts.push("<time-modification><actual-notes>3</actual-notes><normal-notes>2</normal-notes></time-modification>");
+            }
+            const notations: string[] = [];
+            if (n.tripletMark === "first") notations.push(`<tuplet type="start" number="1" bracket="yes"/>`);
+            if (n.tripletMark === "end") notations.push(`<tuplet type="stop" number="1"/>`);
+            if (notations.length > 0) parts.push(`<notations>${notations.join("")}</notations>`);
+            // 점 표시는 위에서 이미 처리했으므로 dots 변수 제거 후 사용 안 함
+            void dots;
+            lines.push(`      <note>${parts.join("")}</note>`);
           }
           // 쉼표 중간엔 tie 연결 없음
           prevTied = false;

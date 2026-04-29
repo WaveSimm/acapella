@@ -69,6 +69,7 @@ export interface RestItem {
   durTicks: number;
   durType: string;
   dots: number;
+  tripletMark?: "first" | "middle" | "end"; // Rest 도 triplet 그룹에 포함될 수 있음
 }
 
 export type MeasureItem = NoteItem | RestItem;
@@ -805,6 +806,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
           durTicks: d.durTicks,
           durType: d.durType,
           dots: d.dots,
+          tripletMark: d.tripletMark ?? undefined,
         });
       }
     }
