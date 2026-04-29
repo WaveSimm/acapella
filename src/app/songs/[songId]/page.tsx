@@ -27,6 +27,7 @@ export default async function SongDetailPage({ params }: Props) {
         where: { ensemble: { conductorId: session.user.id } },
         include: { ensemble: { select: { id: true, name: true } } },
       },
+      nwcFile: { select: { fileName: true } },
     },
   });
   if (!song) notFound();
@@ -110,7 +111,11 @@ export default async function SongDetailPage({ params }: Props) {
       </section>
 
       <section className="mt-6">
-        <NwcUploader songId={song.id} />
+        <NwcUploader
+          songId={song.id}
+          hasStoredNwc={!!song.nwcFileId}
+          storedNwcName={song.nwcFile?.fileName ?? null}
+        />
       </section>
 
       {fileListResources.length > 0 && (

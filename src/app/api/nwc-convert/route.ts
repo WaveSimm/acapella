@@ -7,38 +7,29 @@ import { buildMusicXml } from "@/lib/nwc/to-musicxml";
 
 export const runtime = "nodejs";
 
-const MAX_SIZE = 4 * 1024 * 1024;
-
-interface NwcBody {
-  songId: string;
-}
-
-// Body: multipart with fields `file` (.nwc) + `songId`
+// 저장된 원본 NWC 로 MIDI/MusicXML 재변환 (변환 코드 업데이트 후 사용).
+// Body: { songId: string }
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
   if (!user.isApproved) return NextResponse.json({ error: "승인 대기 중입니다." }, { status: 403 });
 
-  const form = await request.formData();
-  const file = form.get("file");
-  const songId = form.get("songId");
-  if (!(file instanceof File)) {
-    return NextResponse.json({ error: "NWC 파일이 없습니다." }, { status: 400 });
-  }
+  const body = await request.json().catch(() => null);
+  const songId = body?.songId;
   if (typeof songId !== "string" || !songId) {
     return NextResponse.json({ error: "songId가 필요합니다." }, { status: 400 });
   }
-  if (!/\.(nwc|nwctxt)$/i.test(file.name)) {
-    return NextResponse.json({ error: "NWC 파일(.nwc 또는 .nwctxt)만 업로드 가능합니다." }, { status: 415 });
-  }
-  if (file.size > MAX_SIZE) {
-    return NextResponse.json({ error: `파일이 너무 큽니다. 최대 ${MAX_SIZE / 1024 / 1024}MB.` }, { status: 413 });
-  }
 
-  const song = await prisma.song.findUnique({ where: { id: songId }, select: { id: true, titleKo: true, nwcFileId: true } });
+  const song = await prisma.song.findUnique({
+    where: { id: songId },
+    select: { id: true, titleKo: true, nwcFileId: true, nwcFile: { select: { id: true, fileName: true, data: true } } },
+  });
   if (!song) return NextResponse.json({ error: "곡을 찾을 수 없습니다." }, { status: 404 });
+  if (!song.nwcFile) {
+    return NextResponse.json({ error: "원본 NWC 파일이 저장되어 있지 않습니다. 업로드부터 진행해주세요." }, { status: 404 });
+  }
 
-  const buf = Buffer.from(await file.arrayBuffer());
+  const buf = Buffer.from(song.nwcFile.data);
 
   let parsed;
   try {
@@ -58,11 +49,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "NWC → MIDI/MusicXML 변환 실패: " + msg }, { status: 500 });
   }
 
-  const baseName = file.name.replace(/\.(nwc|nwctxt)$/i, "");
+  const baseName = (song.nwcFile.fileName || "score").replace(/\.(nwc|nwctxt)$/i, "");
 
-  // UploadedFile + PracticeResource를 한 트랜잭션으로. 기존 NWC 변환 리소스는 선삭제.
   const result = await prisma.$transaction(async (tx) => {
-    // 기존 "NWC 변환" 리소스 삭제 (중복 누적 방지)
+    // 기존 "NWC 변환" 리소스 삭제 (NWC 원본은 보존)
     const oldRes = await tx.practiceResource.findMany({
       where: { songId: song.id, sourceSite: "NWC 변환" },
       select: { id: true, fileId: true },
@@ -74,25 +64,7 @@ export async function POST(request: NextRequest) {
         await tx.uploadedFile.deleteMany({ where: { id: { in: fileIds } } });
       }
     }
-    // 기존 원본 NWC 도 삭제 (재변환 시 누적 방지)
-    if (song.nwcFileId) {
-      await tx.song.update({ where: { id: song.id }, data: { nwcFileId: null } });
-      await tx.uploadedFile.delete({ where: { id: song.nwcFileId } }).catch(() => {});
-    }
 
-    // 원본 NWC 저장 + Song.nwcFileId 연결 (재변환 시 사용)
-    const nwcFile = await tx.uploadedFile.create({
-      data: {
-        fileName: file.name,
-        mimeType: "application/octet-stream",
-        size: buf.length,
-        data: buf,
-        conductorId: user.id,
-      },
-    });
-    await tx.song.update({ where: { id: song.id }, data: { nwcFileId: nwcFile.id } });
-
-    // 생성된 MIDI 저장 + PracticeResource
     const midiFile = await tx.uploadedFile.create({
       data: {
         fileName: `${baseName}.mid`,
@@ -114,7 +86,7 @@ export async function POST(request: NextRequest) {
         fileId: midiFile.id,
       },
     });
-    // 생성된 MusicXML 저장 + PracticeResource (SCORE_PREVIEW 타입 사용, 악보)
+
     const xmlBuf = Buffer.from(musicXml, "utf-8");
     const xmlFile = await tx.uploadedFile.create({
       data: {
@@ -137,7 +109,7 @@ export async function POST(request: NextRequest) {
         fileId: xmlFile.id,
       },
     });
-    return { nwcFile, midiFile, midiResource, xmlFile, xmlResource };
+    return { midiFile, midiResource, xmlFile, xmlResource };
   });
 
   return NextResponse.json({
@@ -149,8 +121,7 @@ export async function POST(request: NextRequest) {
       fifths: parsed.fifths,
       staves: parsed.staves.map((s) => ({ name: s.name, clef: s.clef, measures: s.measures.length })),
     },
-    nwcFile: { id: result.nwcFile.id, size: result.nwcFile.size, fileName: result.nwcFile.fileName },
     midiFile: { id: result.midiFile.id, size: result.midiFile.size, resourceId: result.midiResource.id },
     musicXmlFile: { id: result.xmlFile.id, size: result.xmlFile.size, resourceId: result.xmlResource.id },
-  }, { status: 201 });
+  }, { status: 200 });
 }

@@ -16,6 +16,9 @@ model Song {
   composer   String?
   arranger   String?
   pageNumber Int?               @map("page_number")
+  // 변환의 원본 NWC 파일. 재변환(코드 업데이트 후 재실행) 가능하도록 보존.
+  // 재업로드 시 이전 파일은 삭제됨 (route 에서 처리).
+  nwcFileId  String?            @unique @map("nwc_file_id")
   createdAt  DateTime           @default(now()) @map("created_at")
   updatedAt  DateTime           @updatedAt @map("updated_at")
 
@@ -23,6 +26,7 @@ model Song {
   specs      ConductorSpec[]
   ensembles  EnsembleSong[]
   rehearsals RehearsalSong[]
+  nwcFile    UploadedFile?      @relation("SongNwc", fields: [nwcFileId], references: [id], onDelete: SetNull)
 
   @@map("songs")
 }
@@ -58,6 +62,7 @@ model UploadedFile {
   createdAt   DateTime          @default(now()) @map("created_at")
 
   resource    PracticeResource?
+  songNwc     Song?             @relation("SongNwc")
 
   @@index([conductorId])
   @@map("uploaded_files")
