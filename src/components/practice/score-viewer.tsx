@@ -13,8 +13,8 @@ interface Props {
   tempoBpm?: number;
   /** OSMD 줌 배율 (기본 0.5) */
   zoom?: number;
-  /** 마디 폭 (OSMD 단위). 지정 시 FixedMeasureWidth=true로 강제 균등. */
-  measureWidth?: number;
+  /** 노트 간격 배수 (기본 1.0). 1보다 크면 더 넓게, 작으면 더 좁게. 듀레이션 비례 유지. */
+  noteSpacing?: number;
   /** MIDI 파일 URL — 템포/박자 변화까지 반영한 정확한 시간→마디 매핑에 사용 */
   midiSrc?: string;
   /** MIDI 재생 중 여부 — 오버레이 표시 판정에 사용 */
@@ -40,7 +40,7 @@ interface MeasureBound {
   endTime: number;   // 초
 }
 
-export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, measureWidth, midiSrc, isPlaying, onReady }: Props) {
+export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = DEFAULT_ZOOM, noteSpacing = 1.0, midiSrc, isPlaying, onReady }: Props) {
   const viewportRef = useRef<HTMLDivElement>(null);
   const mountRef = useRef<HTMLDivElement>(null);
   const cursorOverlayRef = useRef<HTMLDivElement>(null);
@@ -162,14 +162,21 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
         if (rules) {
           rules.RenderSingleHorizontalStaffline = true;
           if (typeof rules.PageHeight === "number") rules.PageHeight = 2000;
+          // 가사가 노트 폭을 밀어내지 않도록 모든 lyric padding/elongation 비활성
           if ("MaximumLyricsElongationFactor" in rules) rules.MaximumLyricsElongationFactor = 1.0;
-          // measureWidth 가 주어지면 FixedMeasureWidth 활성 — 모든 마디 동일 폭
-          if (typeof measureWidth === "number" && measureWidth > 0) {
-            if ("FixedMeasureWidth" in rules) rules.FixedMeasureWidth = true;
-            if ("FixedMeasureWidthFixedValue" in rules) rules.FixedMeasureWidthFixedValue = measureWidth;
-          } else {
-            if ("FixedMeasureWidth" in rules) rules.FixedMeasureWidth = false;
-          }
+          if ("LyricsUseXPaddingForLongLyrics" in rules) rules.LyricsUseXPaddingForLongLyrics = false;
+          if ("LyricsXPaddingFactorForLongLyrics" in rules) rules.LyricsXPaddingFactorForLongLyrics = 0;
+          if ("BetweenSyllableMinimumDistance" in rules) rules.BetweenSyllableMinimumDistance = 0;
+          if ("LyricsXPaddingForLastNoteInMeasure" in rules) rules.LyricsXPaddingForLastNoteInMeasure = false;
+          // 마디 폭은 항상 자동(콘텐츠 기반) — 노트 간격은 noteSpacing 배수로 조정
+          if ("FixedMeasureWidth" in rules) rules.FixedMeasureWidth = false;
+          // 노트 간격을 듀레이션 비례로 — OSMD 는 VexFlow 의 softmax 로 spacing 결정.
+          // SoftmaxFactor 가 높을수록 긴 노트와 짧은 노트의 폭 차이가 커짐 (기본 15).
+          if ("SoftmaxFactorVexFlow" in rules) rules.SoftmaxFactorVexFlow = 100;
+          // noteSpacing 배수 적용 — 자동 모드에서 노트 간격을 사용자가 조정 가능
+          if ("MinNoteDistance" in rules) rules.MinNoteDistance = 1.0 * noteSpacing;
+          if ("VoiceSpacingMultiplierVexflow" in rules) rules.VoiceSpacingMultiplierVexflow = 1.0 * noteSpacing;
+          if ("VoiceSpacingAddendVexflow" in rules) rules.VoiceSpacingAddendVexflow = 1.0 * noteSpacing;
         }
         const sep = src.includes("?") ? "&" : "?";
         const res = await fetch(`${src}${sep}t=${Date.now()}`, { cache: "no-cache" });
@@ -261,12 +268,10 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rules = (osmd as any).EngravingRules ?? (osmd as any).rules;
     if (rules) {
-      if (typeof measureWidth === "number" && measureWidth > 0) {
-        rules.FixedMeasureWidth = true;
-        rules.FixedMeasureWidthFixedValue = measureWidth;
-      } else {
-        rules.FixedMeasureWidth = false;
-      }
+      // noteSpacing 슬라이더 변경 반영
+      if ("MinNoteDistance" in rules) rules.MinNoteDistance = 1.0 * noteSpacing;
+      if ("VoiceSpacingMultiplierVexflow" in rules) rules.VoiceSpacingMultiplierVexflow = 1.0 * noteSpacing;
+      if ("VoiceSpacingAddendVexflow" in rules) rules.VoiceSpacingAddendVexflow = 1.0 * noteSpacing;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((osmd as any).zoom !== zoom) {
@@ -279,7 +284,7 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
       positionCursorAtStart();
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [zoom, measureWidth, status]);
+  }, [zoom, noteSpacing, status]);
 
   // MIDI 파일에서 각 마디의 실제 시작 시간(초) 추출 — 템포 변화 반영
   useEffect(() => {

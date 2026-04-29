@@ -9,42 +9,40 @@ interface Props {
   musicXmlSrc: string;
 }
 
-const DEFAULT_MEASURE_WIDTH = 20;
-const MIN_MW = 8;
-const MAX_MW = 60;
+const DEFAULT_NOTE_SPACING = 1.0;
+const MIN_NS = 0.3;
+const MAX_NS = 3.0;
 
-function storageKey(src: string): string {
-  return `acapella:measureWidth:${src}`;
+function storageKeyNs(src: string): string {
+  return `acapella:noteSpacing:${src}`;
 }
 
 export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
   const [currentTime, setCurrentTime] = useState(0);
   const [info, setInfo] = useState<ScoreInfo | null>(null);
   const [highlightPart, setHighlightPart] = useState<string | null>(null);
-  const [measureWidth, setMeasureWidth] = useState<number>(DEFAULT_MEASURE_WIDTH);
-  // 드래그 중 표시용 (실제 OSMD 반영은 release 시). 초기엔 measureWidth 와 동일.
-  const [pendingWidth, setPendingWidth] = useState<number>(DEFAULT_MEASURE_WIDTH);
+  const [noteSpacing, setNoteSpacing] = useState<number>(DEFAULT_NOTE_SPACING);
+  const [pendingSpacing, setPendingSpacing] = useState<number>(DEFAULT_NOTE_SPACING);
   const [isPlaying, setIsPlaying] = useState(false);
 
-  // 곡별 마디 폭 저장/복원 — localStorage 키 = musicXmlSrc
+  // 곡별 노트 간격 저장·복원
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const saved = window.localStorage.getItem(storageKey(musicXmlSrc));
-    if (saved) {
-      const v = parseInt(saved, 10);
-      if (!isNaN(v) && v >= MIN_MW && v <= MAX_MW) {
-        setMeasureWidth(v);
-        setPendingWidth(v);
+    const savedNs = window.localStorage.getItem(storageKeyNs(musicXmlSrc));
+    if (savedNs) {
+      const v = parseFloat(savedNs);
+      if (!isNaN(v) && v >= MIN_NS && v <= MAX_NS) {
+        setNoteSpacing(v);
+        setPendingSpacing(v);
       }
     }
   }, [musicXmlSrc]);
 
-  // 드래그/클릭 release 시점에만 실제 OSMD에 반영
-  const commitMeasureWidth = () => {
-    if (pendingWidth === measureWidth) return;
-    setMeasureWidth(pendingWidth);
+  const commitNoteSpacing = () => {
+    if (pendingSpacing === noteSpacing) return;
+    setNoteSpacing(pendingSpacing);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(storageKey(musicXmlSrc), String(pendingWidth));
+      window.localStorage.setItem(storageKeyNs(musicXmlSrc), String(pendingSpacing));
     }
   };
 
@@ -80,24 +78,24 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
       )}
 
       <div className={`flex items-center gap-3 text-xs text-gray-500 ${isPlaying ? "opacity-50" : ""}`}>
-        <label htmlFor="mw" className="shrink-0">마디 폭</label>
+        <label htmlFor="ns" className="shrink-0">노트 간격</label>
         <input
-          id="mw"
+          id="ns"
           type="range"
-          min={MIN_MW}
-          max={MAX_MW}
-          step={1}
-          value={pendingWidth}
-          onChange={(e) => setPendingWidth(parseInt(e.target.value, 10))}
-          onPointerUp={commitMeasureWidth}
-          onTouchEnd={commitMeasureWidth}
-          onMouseUp={commitMeasureWidth}
-          onKeyUp={commitMeasureWidth}
+          min={MIN_NS}
+          max={MAX_NS}
+          step={0.1}
+          value={pendingSpacing}
+          onChange={(e) => setPendingSpacing(parseFloat(e.target.value))}
+          onPointerUp={commitNoteSpacing}
+          onTouchEnd={commitNoteSpacing}
+          onMouseUp={commitNoteSpacing}
+          onKeyUp={commitNoteSpacing}
           disabled={isPlaying}
           className="flex-1 disabled:cursor-not-allowed"
-          title={isPlaying ? "재생 중에는 변경 불가" : ""}
+          title={isPlaying ? "재생 중에는 변경 불가" : "노트 간격 배수 (1.0 = 기본). 듀레이션 비례 유지."}
         />
-        <span className="w-8 shrink-0 text-right tabular-nums text-gray-700">{pendingWidth}</span>
+        <span className="w-12 shrink-0 text-right tabular-nums text-gray-700">{pendingSpacing.toFixed(1)}x</span>
       </div>
 
       <ScoreViewer
@@ -105,7 +103,7 @@ export function NwcScorePlayer({ midiSrc, musicXmlSrc }: Props) {
         highlightPart={highlightPart}
         cursorTime={currentTime}
         tempoBpm={info?.tempoBpm ?? undefined}
-        measureWidth={measureWidth}
+        noteSpacing={noteSpacing}
         midiSrc={midiSrc}
         isPlaying={isPlaying}
         onReady={setInfo}
