@@ -290,9 +290,10 @@ export interface ParsedScore {
   staves: Staff[];
 }
 
-// 1 quarter = 128 MIDI ticks = 32 MusicXML divisions (8분할 = 64th note 단위)
-export const MIDI_PPQ = 128;
-export const XML_DIVISIONS = 32;
+// 1 quarter = 192 MIDI ticks = 96 MusicXML divisions.
+// 3 의 배수로 두어 triplet (quarter * 2/3 = 64 / 128 정수) 가 정확히 떨어지도록 함.
+export const MIDI_PPQ = 192;
+export const XML_DIVISIONS = 96;
 
 const NOTE_NAMES = ["C", "D", "E", "F", "G", "A", "B"];
 
