@@ -170,13 +170,10 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
           if ("LyricsXPaddingForLastNoteInMeasure" in rules) rules.LyricsXPaddingForLastNoteInMeasure = false;
           // 마디 폭은 항상 자동(콘텐츠 기반) — 노트 간격은 noteSpacing 배수로 조정
           if ("FixedMeasureWidth" in rules) rules.FixedMeasureWidth = false;
-          // 노트 간격을 듀레이션 비례로 — OSMD 는 VexFlow 의 softmax 로 spacing 결정.
-          // SoftmaxFactor 가 높을수록 긴 노트와 짧은 노트의 폭 차이가 커짐 (기본 15).
-          if ("SoftmaxFactorVexFlow" in rules) rules.SoftmaxFactorVexFlow = 100;
-          // noteSpacing 배수 적용 — 자동 모드에서 노트 간격을 사용자가 조정 가능
-          if ("MinNoteDistance" in rules) rules.MinNoteDistance = 1.0 * noteSpacing;
-          if ("VoiceSpacingMultiplierVexflow" in rules) rules.VoiceSpacingMultiplierVexflow = 1.0 * noteSpacing;
-          if ("VoiceSpacingAddendVexflow" in rules) rules.VoiceSpacingAddendVexflow = 1.0 * noteSpacing;
+          // 노트 간격 — OSMD 기본값에 noteSpacing 배수 적용
+          if ("MinNoteDistance" in rules) rules.MinNoteDistance = 2 * noteSpacing;
+          if ("VoiceSpacingMultiplierVexflow" in rules) rules.VoiceSpacingMultiplierVexflow = 0.85 * noteSpacing;
+          if ("VoiceSpacingAddendVexflow" in rules) rules.VoiceSpacingAddendVexflow = 3 * noteSpacing;
         }
         const sep = src.includes("?") ? "&" : "?";
         const res = await fetch(`${src}${sep}t=${Date.now()}`, { cache: "no-cache" });
@@ -268,10 +265,10 @@ export function ScoreViewer({ src, highlightPart, cursorTime, tempoBpm, zoom = D
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rules = (osmd as any).EngravingRules ?? (osmd as any).rules;
     if (rules) {
-      // noteSpacing 슬라이더 변경 반영
-      if ("MinNoteDistance" in rules) rules.MinNoteDistance = 1.0 * noteSpacing;
-      if ("VoiceSpacingMultiplierVexflow" in rules) rules.VoiceSpacingMultiplierVexflow = 1.0 * noteSpacing;
-      if ("VoiceSpacingAddendVexflow" in rules) rules.VoiceSpacingAddendVexflow = 1.0 * noteSpacing;
+      // noteSpacing 슬라이더 변경 반영 (OSMD 기본값에 배수 적용)
+      if ("MinNoteDistance" in rules) rules.MinNoteDistance = 2 * noteSpacing;
+      if ("VoiceSpacingMultiplierVexflow" in rules) rules.VoiceSpacingMultiplierVexflow = 0.85 * noteSpacing;
+      if ("VoiceSpacingAddendVexflow" in rules) rules.VoiceSpacingAddendVexflow = 3 * noteSpacing;
     }
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     if ((osmd as any).zoom !== zoom) {

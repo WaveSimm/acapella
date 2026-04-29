@@ -202,7 +202,8 @@ function buildStaffTrack(staff: Staff): MidiEvent[] {
     if (it.type === "rest") {
       pendingDelta += it.durTicks;
     } else {
-      const pitches = it.pitches.map((p) => pitchToMidi(p));
+      // octaveShift 가 0 이 아니면 sounding 픽치로 보정 (treble-8 등)
+      const pitches = it.pitches.map((p) => pitchToMidi({ ...p, octave: p.octave + staff.octaveShift }));
       for (let i = 0; i < pitches.length; i++) {
         events.push({
           deltaTime: i === 0 ? pendingDelta : 0,

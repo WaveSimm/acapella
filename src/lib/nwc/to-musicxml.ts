@@ -68,6 +68,22 @@ export function buildMusicXml(parsed: ParsedScore): string {
     }
   }
 
+  // 텍스트 지시문도 동일 — 여러 staff 에 같은 "a tempo" 등이 중복되면 OSMD 가 위로 쌓아 그림.
+  // (measureNumber, text) 로 dedup 후 staves[0] 에만 emit.
+  const aggTextDirections: { measureNumber: number; text: string; italic?: boolean }[] = [];
+  {
+    const seen = new Set<string>();
+    for (const s of parsed.staves) {
+      for (const td of s.textDirections ?? []) {
+        const key = `${td.measureNumber}:${td.text}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        aggTextDirections.push({ measureNumber: td.measureNumber, text: td.text, italic: td.italic });
+      }
+    }
+    aggTextDirections.sort((a, b) => a.measureNumber - b.measureNumber);
+  }
+
   for (const staff of parsed.staves) {
     lines.push(`  <part id="${staff.partId}">`);
     const cd = clefXml(staff.clef);
@@ -104,6 +120,20 @@ export function buildMusicXml(parsed: ParsedScore): string {
       }
 
       lines.push(`    <measure number="${measureNumber}">`);
+      // 좌측 barline (반복 시작 / 1번·2번 괄호 시작)
+      const leftBarParts: string[] = [];
+      if (m.startBarStyle === "MasterRepeatOpen" || m.startBarStyle === "LocalRepeatOpen") {
+        leftBarParts.push(`<bar-style>heavy-light</bar-style><repeat direction="forward"/>`);
+      }
+      // ending 시작: 직전 마디와 endingNumber 가 다르면 type=start
+      const prevMeasure = mi > 0 ? staff.measures[mi - 1] : undefined;
+      const prevEnding = prevMeasure?.endingNumber;
+      if (m.endingNumber && m.endingNumber !== prevEnding) {
+        leftBarParts.push(`<ending number="${m.endingNumber}" type="start"/>`);
+      }
+      if (leftBarParts.length > 0) {
+        lines.push(`      <barline location="left">${leftBarParts.join("")}</barline>`);
+      }
       if (mi === 0) {
         lines.push(`      <attributes>`);
         lines.push(`        <divisions>${XML_DIVISIONS}</divisions>`);
@@ -111,6 +141,8 @@ export function buildMusicXml(parsed: ParsedScore): string {
         if (curTsNum && curTsDen) {
           lines.push(`        <time><beats>${curTsNum}</beats><beat-type>${curTsDen}</beat-type></time>`);
         }
+        // clef-octave-change 는 OSMD 가 추가 octave shift 를 적용해 위치가 어긋나는 케이스가 있어 제거.
+        // 픽치는 written 으로 저장되어 OSMD 가 정확한 위치에 그림. (MIDI 는 to-midi 가 octaveShift 적용해 sounding 픽치로 재생.)
         lines.push(`        <clef><sign>${cd.sign}</sign><line>${cd.line}</line></clef>`);
         lines.push(`      </attributes>`);
         if (staff === parsed.staves[0] && parsed.tempo) {
@@ -133,11 +165,14 @@ export function buildMusicXml(parsed: ParsedScore): string {
           lines.push(`      <direction placement="above"><direction-type><metronome><beat-unit>quarter</beat-unit><per-minute>${tc.bpm}</per-minute></metronome></direction-type><sound tempo="${tc.bpm}"/></direction>`);
         }
       }
-      // 무대 지시문 (예: "slow with rubato") — 각 staff 별로 자기 것만 emit
-      const texts = staff.textDirections?.filter((td) => td.measureNumber === measureNumber) ?? [];
-      for (const td of texts) {
-        const fontAttr = td.italic ? ' font-style="italic"' : "";
-        lines.push(`      <direction placement="above"><direction-type><words${fontAttr}>${escapeXml(td.text)}</words></direction-type></direction>`);
+      // 무대 지시문 (예: "slow with rubato", "a tempo") — staves[0] 에만 dedup 후 emit.
+      // 같은 텍스트가 여러 staff 에 있으면 OSMD 가 위로 쌓아 그리므로 dedup 필수.
+      if (staff === parsed.staves[0]) {
+        const texts = aggTextDirections.filter((td) => td.measureNumber === measureNumber);
+        for (const td of texts) {
+          const fontAttr = td.italic ? ' font-style="italic"' : "";
+          lines.push(`      <direction placement="above"><direction-type><words${fontAttr}>${escapeXml(td.text)}</words></direction-type></direction>`);
+        }
       }
       // 빈 마디는 전체 쉼표로 채워 정렬 유지
       if (m.notes.length === 0) {
@@ -226,6 +261,24 @@ export function buildMusicXml(parsed: ParsedScore): string {
           // 장식음은 tie chain 에 참여 안 함 — prevTied 유지
           if (!n.isGrace) prevTied = thisStartsTie;
         }
+      }
+      // 우측 barline (반복 끝 / 겹세로줄 / 종지선 / 1번·2번 괄호 종료)
+      const rightBarParts: string[] = [];
+      const nextMeasure = mi + 1 < effectiveMaxCount ? staff.measures[mi + 1] : undefined;
+      const isFinalMeasure = mi === effectiveMaxCount - 1;
+      if (m.endBarStyle === "MasterRepeatClose" || m.endBarStyle === "LocalRepeatClose") {
+        rightBarParts.push(`<bar-style>light-heavy</bar-style><repeat direction="backward"/>`);
+      } else if (m.endBarStyle === "Double" || m.endBarStyle === "SectionOpen") {
+        rightBarParts.push(`<bar-style>light-light</bar-style>`);
+      } else if (m.endBarStyle === "SectionClose" || isFinalMeasure) {
+        rightBarParts.push(`<bar-style>light-heavy</bar-style>`);
+      }
+      // ending 종료: 다음 마디에 endingNumber 가 없거나 다르면 stop
+      if (m.endingNumber && (!nextMeasure || nextMeasure.endingNumber !== m.endingNumber)) {
+        rightBarParts.push(`<ending number="${m.endingNumber}" type="stop"/>`);
+      }
+      if (rightBarParts.length > 0) {
+        lines.push(`      <barline location="right">${rightBarParts.join("")}</barline>`);
       }
       lines.push(`    </measure>`);
     }

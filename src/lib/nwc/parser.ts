@@ -75,6 +75,10 @@ export type MeasureItem = NoteItem | RestItem;
 
 export interface Measure {
   notes: MeasureItem[];
+  // Barline / repeat / volta ending 표기 (MusicXML <barline>, <ending> 출력용)
+  startBarStyle?: string; // "MasterRepeatOpen" 등 — 마디 좌측 barline
+  endBarStyle?: string;   // "Double" / "MasterRepeatClose" — 마디 우측 barline
+  endingNumber?: number;  // volta 1번/2번 etc.
 }
 
 export interface KeyChange {
@@ -216,7 +220,14 @@ function splitOverflowingMeasures(staff: Staff): void {
       newMeasures.push(m);
       continue;
     }
-    for (const bucket of splits) newMeasures.push({ notes: bucket });
+    // bar style / ending 전파: 첫 분할에 startBarStyle, 마지막 분할에 endBarStyle, 모든 분할에 endingNumber
+    splits.forEach((bucket, idx) => {
+      const sub: Measure = { notes: bucket };
+      if (idx === 0 && m.startBarStyle) sub.startBarStyle = m.startBarStyle;
+      if (idx === splits.length - 1 && m.endBarStyle) sub.endBarStyle = m.endBarStyle;
+      if (m.endingNumber) sub.endingNumber = m.endingNumber;
+      newMeasures.push(sub);
+    });
   }
 
   // 4) keyChanges / timeSigChanges / tempoChanges / textDirections measureNumber 재맵핑
@@ -385,13 +396,16 @@ function parsePos(posStr: string): ParsedPos | null {
   return { pos, alter, tied };
 }
 
-function posToStepOctave(pos: number, center: ClefCenter, octaveShift: number) {
+// 주의: octaveShift 는 여기서 적용하지 않음 (visual=written 픽치 유지).
+// MIDI 출력 시점에만 octaveShift * 12 를 더해 sounding 픽치 계산. MusicXML 은
+// <clef-octave-change> 로 표현해 OSMD 가 written 위치에 그림 (treble-8 관행).
+function posToStepOctave(pos: number, center: ClefCenter) {
   const total = center.step + pos;
   const stepInOctave = ((total % 7) + 7) % 7;
   const octaveDelta = Math.floor(total / 7);
   return {
     step: NOTE_NAMES[stepInOctave],
-    octave: center.octave + octaveDelta + octaveShift,
+    octave: center.octave + octaveDelta,
   };
 }
 
@@ -529,6 +543,10 @@ export function parseNwc(input: Buffer | string): ParsedScore {
   let currentMeasure: Measure | null = null;
   // 페르마타 with Placement:AtNextNote → 다음 노트가 들어올 때 적용
   let pendingFermata: { pause: number } | null = null;
+  // Bar Style 이 MasterRepeatOpen 이면 다음 마디의 startBarStyle 로 기록
+  let pendingStartBarStyle: string | null = null;
+  // |Ending| 명령은 다음 마디에 endingNumber 적용. 다음 Ending 또는 MasterRepeatClose 까지 유지.
+  let pendingEndingNumber: number | null = null;
 
   for (const { cmd, props } of lines) {
     const p = props as Record<string, string>;
@@ -556,19 +574,20 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         }
       }
     } else if (cmd === "TempoVariance" && current && currentMeasure) {
-      // 페르마타: AtNextNote → 이후 첫 노트에 적용. 없으면 직전 노트에 적용.
+      // 페르마타: NWC 관습상 디폴트가 "다음 노트" 에 적용 (Placement 없거나 AtNextNote).
+      // BeforeNote 같은 명시적 placement 만 직전 노트에 적용.
       if (p.Style === "Fermata") {
         const pause = parseFloat(p.Pause as string) || 0;
-        if (p.Placement === "AtNextNote") {
-          // 이 시점에 currentMeasure 가 비어있더라도 이후 들어올 첫 노트에 적용 — pendingFermata 사용
-          pendingFermata = { pause };
-        } else {
-          // 직전 노트에 적용
+        if (p.Placement === "BeforeNote") {
+          // 직전 노트에 명시적 적용
           const last = [...currentMeasure.notes].reverse().find((n) => n.type === "note");
           if (last && last.type === "note") {
             last.fermata = true;
             last.fermataPause = pause;
           }
+        } else {
+          // 디폴트 / AtNextNote — 이후 첫 노트에 적용
+          pendingFermata = { pause };
         }
       }
     } else if (cmd === "Text" && current) {
@@ -625,6 +644,10 @@ export function parseNwc(input: Buffer | string): ParsedScore {
         }
       }
     } else if (cmd === "AddStaff") {
+      // 이전 staff 의 pending 상태가 새 staff 로 leak 되지 않도록 리셋
+      pendingFermata = null;
+      pendingStartBarStyle = null;
+      pendingEndingNumber = null;
       current = {
         name: decodeKorean(p.Name || "Staff" + score.staves.length),
         label: decodeKorean(p.Label || p.Name || ""),
@@ -665,13 +688,46 @@ export function parseNwc(input: Buffer | string): ParsedScore {
       // 첫 번째 verse만 사용 (MVP). 여러 verse는 차후 number 속성으로.
       current.lyricRaw = decodeKorean(p.Text);
     } else if (cmd === "Bar" && current) {
+      const style = typeof p.Style === "string" ? p.Style : undefined;
+      // 끝 barStyle: 현재 마디 우측에 그려질 barline (현재 마디 닫히기 전 기록)
+      if (currentMeasure && (style === "Double" || style === "MasterRepeatClose" || style === "SectionOpen" || style === "SectionClose" || style === "LocalRepeatClose")) {
+        currentMeasure.endBarStyle = style;
+      }
+      // MasterRepeatClose 는 ending 종료도 함께
+      if (style === "MasterRepeatClose") {
+        pendingEndingNumber = null;
+      }
+      // 새 마디 생성
       currentMeasure = { notes: [] };
       current.measures.push(currentMeasure);
+      // 시작 barStyle: 새 마디 좌측 barline
+      if (style === "MasterRepeatOpen" || style === "LocalRepeatOpen") {
+        currentMeasure.startBarStyle = style;
+      }
+      if (pendingStartBarStyle && !currentMeasure.startBarStyle) {
+        currentMeasure.startBarStyle = pendingStartBarStyle;
+        pendingStartBarStyle = null;
+      }
+      // 활성 ending 이 있으면 새 마디에도 적용
+      if (pendingEndingNumber !== null) {
+        currentMeasure.endingNumber = pendingEndingNumber;
+      }
+    } else if (cmd === "Ending" && current) {
+      // |Ending|Endings:1 또는 Endings:1,2 — 첫 번째 숫자만 사용
+      const raw = typeof p.Endings === "string" ? p.Endings : "";
+      const num = parseInt(raw.split(",")[0], 10);
+      if (!isNaN(num)) {
+        pendingEndingNumber = num;
+        // 현재 마디가 비어있으면 거기에 적용 (Ending 이 Bar 직후 등장하는 경우)
+        if (currentMeasure && currentMeasure.notes.length === 0) {
+          currentMeasure.endingNumber = num;
+        }
+      }
     } else if (cmd === "Note" && current && currentMeasure) {
       const pp = parsePos(p.Pos);
       if (!pp) continue;
       const d = durToData(p.Dur);
-      const so = posToStepOctave(pp.pos, clefCenter(current.clef), current.octaveShift);
+      const so = posToStepOctave(pp.pos, clefCenter(current.clef));
       let alter = pp.alter;
       if (alter === null && current.keySig[so.step] !== undefined) alter = current.keySig[so.step];
       const note: NoteItem = {
@@ -700,7 +756,7 @@ export function parseNwc(input: Buffer | string): ParsedScore {
       const center = clefCenter(current.clef);
       const staff = current;
       const pitches: Pitch[] = pps.map((pp) => {
-        const so = posToStepOctave(pp.pos, center, staff.octaveShift);
+        const so = posToStepOctave(pp.pos, center);
         let alter = pp.alter;
         if (alter === null && staff.keySig[so.step] !== undefined) alter = staff.keySig[so.step];
         return { step: so.step, octave: so.octave, alter: alter ?? 0, explicitAccidental: pp.alter };
@@ -759,6 +815,38 @@ export function parseNwc(input: Buffer | string): ParsedScore {
     splitOverflowingMeasures(staff);
   }
 
+  // 임시표 propagation:
+  //  1) 마디 내 sticking — 같은 step×octave 에 명시적 임시표가 한 번 붙으면 마디 끝까지 유지
+  //  2) 마디 경계 타이 inherit — `^` 로 묶인 노트는 다음 마디 첫 노트가 explicit accidental 없을 때 source 의 alter 를 상속
+  for (const staff of score.staves) {
+    let prev: NoteItem | null = null;
+    for (const measure of staff.measures) {
+      const sticky = new Map<string, number>(); // "step+octave" -> alter
+      for (const n of measure.notes) {
+        if (n.type !== "note") continue;
+        if (n.isGrace) continue; // 장식음은 propagation 체인에 미참여
+        for (const p of n.pitches) {
+          const key = `${p.step}${p.octave}`;
+          if (p.explicitAccidental !== null && p.explicitAccidental !== undefined) {
+            // 명시적 임시표 — sticky 갱신
+            sticky.set(key, p.explicitAccidental);
+          } else if (sticky.has(key)) {
+            // 같은 마디 내 sticky 적용
+            p.alter = sticky.get(key)!;
+          } else if (prev?.tied) {
+            // 마디 경계 — 직전 노트가 타이였으면 같은 step+octave 픽치 alter 상속
+            const src = prev.pitches.find((pp) => pp.step === p.step && pp.octave === p.octave);
+            if (src) {
+              p.alter = src.alter;
+              sticky.set(key, src.alter); // 이후 같은 노트도 같이
+            }
+          }
+        }
+        prev = n;
+      }
+    }
+  }
+
   // 각 스태프의 가사를 노트에 매핑 (파싱이 끝난 후)
   for (const staff of score.staves) {
     if (!staff.lyricRaw) continue;
@@ -789,6 +877,17 @@ export function parseNwc(input: Buffer | string): ParsedScore {
       const last = allNotes[allNotes.length - 1];
       if (last && last.type === "note" && !last.slurEvent) last.slurEvent = "stop";
     }
+  }
+
+  // 남자 파트(베이스/테너/바리톤) + Treble clef + OctaveShift 없음 → treble-8 자동 적용.
+  // 합창 관행상 treble 위에 적힌 남자 파트는 한 옥타브 낮게 읽음. NWC 가 명시 안 했더라도 보정.
+  for (const s of score.staves) {
+    if (s.octaveShift !== 0) continue;
+    if (s.clef !== "Treble") continue;
+    const n = s.name.toLowerCase();
+    const isMale = /\b(bass|tenor|baritone|bariton|ten|bar)\b/.test(n)
+      || /베이스|테너|바리톤/.test(s.name);
+    if (isMale) s.octaveShift = -1;
   }
 
   // 숨김 스태프의 score-wide 메타 (템포 변화) 를 첫 번째 visible staff 에 이전 — drop 전에.
