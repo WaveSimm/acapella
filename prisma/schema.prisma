@@ -1,3 +1,7 @@
+// Design Ref: §3.1 — 통합 schema (ChoirNote master, Acapella는 byte-identical 복사)
+// 변경 시 acapella/prisma/schema.prisma도 즉시 동일하게 복사 필요.
+// 검증: bash scripts/check-schema-sync.sh
+
 generator client {
   provider = "prisma-client-js"
 }
@@ -8,30 +12,78 @@ datasource db {
   directUrl = env("DIRECT_URL")
 }
 
+// ─── 출판사 (ChoirNote) ───
+model Publisher {
+  id              String       @id @default(cuid())
+  name            String
+  slug            String       @unique
+  practiceBaseUrl String?      @map("practice_base_url")
+  logoUrl         String?      @map("logo_url")
+  isActive        Boolean      @default(true) @map("is_active")
+  createdAt       DateTime     @default(now()) @map("created_at")
+  updatedAt       DateTime     @updatedAt @map("updated_at")
+  collections     Collection[]
+
+  @@map("publishers")
+}
+
+// ─── 곡집 (ChoirNote) ───
+model Collection {
+  id           String             @id @default(cuid())
+  publisherId  String             @map("publisher_id")
+  name         String
+  volumeNumber Int?               @map("volume_number")
+  category     CollectionCategory @default(GENERAL)
+  practiceUrl  String?            @map("practice_url")
+  coverImage   String?            @map("cover_image")
+  createdAt    DateTime           @default(now()) @map("created_at")
+  updatedAt    DateTime           @updatedAt @map("updated_at")
+
+  publisher            Publisher             @relation(fields: [publisherId], references: [id])
+  songs                Song[]
+  conductorCollections ConductorCollection[]
+  crawlRequests        CrawlRequest[]
+
+  @@map("collections")
+}
+
+enum CollectionCategory {
+  GENERAL
+  EASTER
+  CHRISTMAS
+  EASY
+  CANTATA
+}
+
 // ─── 곡 ───
+// CHANGED: collectionId nullable, nwcFileId 추가, ensembles/rehearsals/nwcFile 관계 추가
 model Song {
-  id         String             @id @default(cuid())
-  titleKo    String             @map("title_ko")
-  titleEn    String?            @map("title_en")
-  composer   String?
-  arranger   String?
-  pageNumber Int?               @map("page_number")
-  // 변환의 원본 NWC 파일. 재변환(코드 업데이트 후 재실행) 가능하도록 보존.
-  // 재업로드 시 이전 파일은 삭제됨 (route 에서 처리).
-  nwcFileId  String?            @unique @map("nwc_file_id")
-  createdAt  DateTime           @default(now()) @map("created_at")
-  updatedAt  DateTime           @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  collectionId String?  @map("collection_id")
+  trackNumber  Int?     @map("track_number")
+  pageNumber   Int?     @map("page_number")
+  titleKo      String   @map("title_ko")
+  titleEn      String?  @map("title_en")
+  composer     String?
+  arranger     String?
+  nwcFileId    String?  @unique @map("nwc_file_id")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  resources  PracticeResource[]
-  specs      ConductorSpec[]
-  ensembles  EnsembleSong[]
-  rehearsals RehearsalSong[]
-  nwcFile    UploadedFile?      @relation("SongNwc", fields: [nwcFileId], references: [id], onDelete: SetNull)
+  collection  Collection?        @relation(fields: [collectionId], references: [id])
+  resources   PracticeResource[]
+  specs       ConductorSpec[]
+  assignments WeeklyAssignment[]
+  ensembles   EnsembleSong[]
+  rehearsals  RehearsalSong[]
+  nwcFile     UploadedFile?      @relation("SongNwc", fields: [nwcFileId], references: [id], onDelete: SetNull)
 
+  @@unique([collectionId, trackNumber])
   @@map("songs")
 }
 
 // ─── 파트별 연습 리소스 ───
+// CHANGED: part는 String(한글 표준값), fileId(UploadedFile) 추가
 model PracticeResource {
   id           String       @id @default(cuid())
   songId       String       @map("song_id")
@@ -44,30 +96,14 @@ model PracticeResource {
   fileId       String?      @unique @map("file_id")
   createdAt    DateTime     @default(now()) @map("created_at")
 
-  song         Song          @relation(fields: [songId], references: [id])
-  conductor    Conductor?    @relation(fields: [conductorId], references: [id], onDelete: SetNull)
-  file         UploadedFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
+  song      Song          @relation(fields: [songId], references: [id])
+  conductor Conductor?    @relation(fields: [conductorId], references: [id], onDelete: SetNull)
+  file      UploadedFile? @relation(fields: [fileId], references: [id], onDelete: SetNull)
 
   @@map("practice_resources")
 }
 
-// ─── 업로드된 파일 (MIDI, PDF, MP3 등 소형 파일) ───
-model UploadedFile {
-  id          String            @id @default(cuid())
-  fileName    String            @map("file_name")
-  mimeType    String            @map("mime_type")
-  size        Int
-  data        Bytes
-  conductorId String?           @map("conductor_id")
-  createdAt   DateTime          @default(now()) @map("created_at")
-
-  resource    PracticeResource?
-  songNwc     Song?             @relation("SongNwc")
-
-  @@index([conductorId])
-  @@map("uploaded_files")
-}
-
+// CHANGED: MIDI 추가
 enum ResourceType {
   VIDEO
   AUDIO
@@ -75,68 +111,81 @@ enum ResourceType {
   MIDI
 }
 
+// REMOVED: enum VoicePart (part는 이제 String)
+
 enum Role {
   PENDING
   CONDUCTOR
   ADMIN
 }
 
-// ─── 지휘자 ───
+// ─── 지휘자 (NextAuth User 확장) ───
+// CHANGED: ensembles 관계 추가
 model Conductor {
-  id            String             @id @default(cuid())
-  name          String
-  email         String             @unique
-  image         String?
-  authProvider  String?            @map("auth_provider")
-  region        String?
-  bio           String?            @db.Text
-  regionPublic  Boolean            @default(false) @map("region_public")
-  bioPublic     Boolean            @default(false) @map("bio_public")
-  role          Role               @default(PENDING)
-  isApproved    Boolean            @default(false) @map("is_approved")
-  createdAt     DateTime           @default(now()) @map("created_at")
-  updatedAt     DateTime           @updatedAt @map("updated_at")
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  image        String?
+  authProvider String?  @map("auth_provider")
+  churchName   String?  @map("church_name")
+  region       String?
+  choirName    String?  @map("choir_name")
+  bio          String?  @db.Text
+  regionPublic Boolean  @default(false) @map("region_public")
+  churchPublic Boolean  @default(false) @map("church_public")
+  choirPublic  Boolean  @default(false) @map("choir_public")
+  bioPublic    Boolean  @default(false) @map("bio_public")
+  role         Role     @default(PENDING)
+  isApproved   Boolean  @default(false) @map("is_approved")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
 
-  specs         ConductorSpec[]
-  ensembles     Ensemble[]
-  resources     PracticeResource[]
-  accounts      Account[]
-  sessions      Session[]
+  specs                ConductorSpec[]
+  choirs               Choir[]
+  ensembles            Ensemble[]
+  resources            PracticeResource[]
+  conductorCollections ConductorCollection[]
+  crawlRequests        CrawlRequest[]
+  crawlVotes           CrawlVote[]
+  accounts             Account[]
+  sessions             Session[]
 
   @@map("conductors")
 }
 
-// ─── 곡별 음악 사양 ───
+// ─── 지휘자별 곡 사양 (ChoirNote) ───
 model ConductorSpec {
-  id              String          @id @default(cuid())
-  songId          String          @map("song_id")
-  conductorId     String          @map("conductor_id")
+  id          String @id @default(cuid())
+  songId      String @map("song_id")
+  conductorId String @map("conductor_id")
 
-  keySignature    String?         @map("key_signature")
-  timeSignature   String?         @map("time_signature")
-  tempo           String?
-  difficulty      Difficulty?
-  voicing         String?
-  measures        Int?
-  highestNote     String?         @map("highest_note")
-  soloInfo        String?         @map("solo_info")
-  theme           String?
-  accompaniment   String?
-  durationMin     Float?          @map("duration_min")
-  notes           String?         @db.Text
+  keySignature  String?     @map("key_signature")
+  timeSignature String?     @map("time_signature")
+  tempo         String?
+  difficulty    Difficulty?
+  voicing       String?
+  measures      Int?
+  highestNote   String?     @map("highest_note")
+  soloInfo      String?     @map("solo_info")
+  theme         String?
+  accompaniment String?
+  durationMin   Float?      @map("duration_min")
+  notes         String?     @db.Text
 
-  lastPerformedAt DateTime?       @map("last_performed_at")
+  lastPerformedAt DateTime? @map("last_performed_at")
+  plannedDate     DateTime? @map("planned_date")
 
-  isPublic        Boolean         @default(false) @map("is_public")
-  forkedFromId    String?         @map("forked_from_id")
+  isPublic     Boolean @default(false) @map("is_public")
+  forkedFromId String? @map("forked_from_id")
 
-  createdAt       DateTime        @default(now()) @map("created_at")
-  updatedAt       DateTime        @updatedAt @map("updated_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
 
-  song            Song            @relation(fields: [songId], references: [id])
-  conductor       Conductor       @relation(fields: [conductorId], references: [id], onDelete: Cascade)
-  forkedFrom      ConductorSpec?  @relation("SpecFork", fields: [forkedFromId], references: [id])
-  forks           ConductorSpec[] @relation("SpecFork")
+  song        Song               @relation(fields: [songId], references: [id])
+  conductor   Conductor          @relation(fields: [conductorId], references: [id])
+  forkedFrom  ConductorSpec?     @relation("SpecFork", fields: [forkedFromId], references: [id])
+  forks       ConductorSpec[]    @relation("SpecFork")
+  assignments WeeklyAssignment[]
 
   @@unique([songId, conductorId])
   @@map("conductor_specs")
@@ -150,59 +199,63 @@ enum Difficulty {
   HARD
 }
 
-// ─── 합창단 ───
-model Ensemble {
-  id             String         @id @default(cuid())
-  conductorId    String         @map("conductor_id")
-  name           String
-  shareCode      String         @unique @map("share_code")
-  description    String?        @db.Text
-  driveFolderUrl String?        @map("drive_folder_url")
-  driveFolderId  String?        @map("drive_folder_id")
-  createdAt      DateTime       @default(now()) @map("created_at")
-  updatedAt      DateTime       @updatedAt @map("updated_at")
+// ─── 성가대 (ChoirNote) ───
+model Choir {
+  id          String   @id @default(cuid())
+  conductorId String   @map("conductor_id")
+  name        String
+  churchName  String?  @map("church_name")
+  shareCode   String   @unique @map("share_code")
+  createdAt   DateTime @default(now()) @map("created_at")
+  updatedAt   DateTime @updatedAt @map("updated_at")
 
-  conductor      Conductor      @relation(fields: [conductorId], references: [id])
-  songs          EnsembleSong[]
-  rehearsals     Rehearsal[]
+  conductor   Conductor          @relation(fields: [conductorId], references: [id])
+  assignments WeeklyAssignment[]
+
+  @@map("choirs")
+}
+
+// ─── 주간 배정 (ChoirNote) ───
+model WeeklyAssignment {
+  id               String   @id @default(cuid())
+  choirId          String   @map("choir_id")
+  songId           String   @map("song_id")
+  conductorSpecId  String?  @map("conductor_spec_id")
+  worshipDate      DateTime @map("worship_date") @db.Date
+  liturgicalSeason String?  @map("liturgical_season")
+  orderInWorship   Int      @default(1) @map("order_in_worship")
+  label            String?
+  memo             String?  @db.Text
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  choir         Choir          @relation(fields: [choirId], references: [id])
+  song          Song           @relation(fields: [songId], references: [id])
+  conductorSpec ConductorSpec? @relation(fields: [conductorSpecId], references: [id])
+
+  @@map("weekly_assignments")
+}
+
+// ─── 합창단 (Acapella, 신규) ───
+model Ensemble {
+  id             String   @id @default(cuid())
+  conductorId    String   @map("conductor_id")
+  name           String
+  shareCode      String   @unique @map("share_code")
+  description    String?  @db.Text
+  driveFolderUrl String?  @map("drive_folder_url")
+  driveFolderId  String?  @map("drive_folder_id")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  conductor  Conductor      @relation(fields: [conductorId], references: [id])
+  songs      EnsembleSong[]
+  rehearsals Rehearsal[]
 
   @@map("ensembles")
 }
 
-// ─── 연습 일정 ───
-model Rehearsal {
-  id         String          @id @default(cuid())
-  ensembleId String          @map("ensemble_id")
-  date       DateTime?       @db.Date
-  startTime  String?         @map("start_time")
-  location   String?
-  note       String?         @db.Text
-  createdAt  DateTime        @default(now()) @map("created_at")
-  updatedAt  DateTime        @updatedAt @map("updated_at")
-
-  ensemble   Ensemble        @relation(fields: [ensembleId], references: [id], onDelete: Cascade)
-  songs      RehearsalSong[]
-
-  @@index([ensembleId, date])
-  @@map("rehearsals")
-}
-
-model RehearsalSong {
-  id          String    @id @default(cuid())
-  rehearsalId String    @map("rehearsal_id")
-  songId      String    @map("song_id")
-  orderIdx    Int       @default(0) @map("order_idx")
-  note        String?
-  addedAt     DateTime  @default(now()) @map("added_at")
-
-  rehearsal   Rehearsal @relation(fields: [rehearsalId], references: [id], onDelete: Cascade)
-  song        Song      @relation(fields: [songId], references: [id])
-
-  @@unique([rehearsalId, songId])
-  @@map("rehearsal_songs")
-}
-
-// ─── 합창단 레파토리 (곡 목록) ───
+// ─── 합창단 레파토리 (Acapella, 신규) ───
 model EnsembleSong {
   id         String   @id @default(cuid())
   ensembleId String   @map("ensemble_id")
@@ -211,14 +264,65 @@ model EnsembleSong {
   note       String?  @db.Text
   addedAt    DateTime @default(now()) @map("added_at")
 
-  ensemble   Ensemble @relation(fields: [ensembleId], references: [id], onDelete: Cascade)
-  song       Song     @relation(fields: [songId], references: [id])
+  ensemble Ensemble @relation(fields: [ensembleId], references: [id], onDelete: Cascade)
+  song     Song     @relation(fields: [songId], references: [id])
 
   @@unique([ensembleId, songId])
   @@map("ensemble_songs")
 }
 
-// ─── NextAuth ───
+// ─── 연습 일정 (Acapella, 신규) ───
+model Rehearsal {
+  id         String    @id @default(cuid())
+  ensembleId String    @map("ensemble_id")
+  date       DateTime? @db.Date
+  startTime  String?   @map("start_time")
+  location   String?
+  note       String?   @db.Text
+  createdAt  DateTime  @default(now()) @map("created_at")
+  updatedAt  DateTime  @updatedAt @map("updated_at")
+
+  ensemble Ensemble        @relation(fields: [ensembleId], references: [id], onDelete: Cascade)
+  songs    RehearsalSong[]
+
+  @@index([ensembleId, date])
+  @@map("rehearsals")
+}
+
+// ─── 연습 곡 (Acapella, 신규) ───
+model RehearsalSong {
+  id          String   @id @default(cuid())
+  rehearsalId String   @map("rehearsal_id")
+  songId      String   @map("song_id")
+  orderIdx    Int      @default(0) @map("order_idx")
+  note        String?
+  addedAt     DateTime @default(now()) @map("added_at")
+
+  rehearsal Rehearsal @relation(fields: [rehearsalId], references: [id], onDelete: Cascade)
+  song      Song      @relation(fields: [songId], references: [id])
+
+  @@unique([rehearsalId, songId])
+  @@map("rehearsal_songs")
+}
+
+// ─── 업로드된 파일 (Acapella, 신규) ───
+model UploadedFile {
+  id          String   @id @default(cuid())
+  fileName    String   @map("file_name")
+  mimeType    String   @map("mime_type")
+  size        Int
+  data        Bytes
+  conductorId String?  @map("conductor_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  resource PracticeResource?
+  songNwc  Song?             @relation("SongNwc")
+
+  @@index([conductorId])
+  @@map("uploaded_files")
+}
+
+// ─── NextAuth 필수 테이블 ───
 model Account {
   id                String  @id @default(cuid())
   userId            String  @map("user_id")
@@ -233,19 +337,19 @@ model Account {
   id_token          String? @db.Text
   session_state     String?
 
-  user              Conductor @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user Conductor @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@unique([provider, providerAccountId])
   @@map("accounts")
 }
 
 model Session {
-  id           String    @id @default(cuid())
-  sessionToken String    @unique @map("session_token")
-  userId       String    @map("user_id")
+  id           String   @id @default(cuid())
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id")
   expires      DateTime
 
-  user         Conductor @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user Conductor @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@map("sessions")
 }
@@ -257,6 +361,59 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+// ─── 크롤링 (ChoirNote) ───
+model CrawlRequest {
+  id             String      @id @default(cuid())
+  conductorId    String      @map("conductor_id")
+  publisherName  String      @map("publisher_name")
+  collectionName String      @map("collection_name")
+  practiceUrl    String      @map("practice_url")
+  status         CrawlStatus @default(REQUESTED)
+  collectionId   String?     @map("collection_id")
+  createdAt      DateTime    @default(now()) @map("created_at")
+  updatedAt      DateTime    @updatedAt @map("updated_at")
+
+  conductor  Conductor   @relation(fields: [conductorId], references: [id])
+  collection Collection? @relation(fields: [collectionId], references: [id])
+  votes      CrawlVote[]
+
+  @@map("crawl_requests")
+}
+
+model CrawlVote {
+  id          String   @id @default(cuid())
+  requestId   String   @map("request_id")
+  conductorId String   @map("conductor_id")
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  request   CrawlRequest @relation(fields: [requestId], references: [id], onDelete: Cascade)
+  conductor Conductor    @relation(fields: [conductorId], references: [id])
+
+  @@unique([requestId, conductorId])
+  @@map("crawl_votes")
+}
+
+enum CrawlStatus {
+  REQUESTED
+  IN_PROGRESS
+  COMPLETED
+}
+
+// ─── 지휘자별 곡집 공개 설정 (ChoirNote) ───
+model ConductorCollection {
+  id           String   @id @default(cuid())
+  conductorId  String   @map("conductor_id")
+  collectionId String   @map("collection_id")
+  isPublic     Boolean  @default(false) @map("is_public")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  conductor  Conductor  @relation(fields: [conductorId], references: [id])
+  collection Collection @relation(fields: [collectionId], references: [id])
+
+  @@unique([conductorId, collectionId])
+  @@map("conductor_collections")
 }
 
 // ─── 접속 로그 ───

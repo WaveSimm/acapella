@@ -1,75 +1,16 @@
-const EXT_RE = /\.(mp3|mp4|m4a|wav|mid|midi|mov)$/i;
+// Design Ref: §4.5 — PART_ALIAS는 normalize-part.ts로 이전(choirnote↔acapella 공유).
+// drive-sync는 파일명 파싱 + 곡 매칭 도메인만 담당.
+import { normalizePart, isPartToken } from "@/lib/normalize-part";
 
-// 파트 표기 정규화. 입력: 토큰. 출력: 저장용 한글 파트명.
-const PART_ALIAS: Record<string, string> = {
-  // 소프라노
-  s: "소프라노",
-  sop: "소프라노",
-  soprano: "소프라노",
-  소프라노: "소프라노",
-  s1: "소프라노1",
-  s2: "소프라노2",
-  sop1: "소프라노1",
-  sop2: "소프라노2",
-  // 알토
-  a: "알토",
-  alt: "알토",
-  alto: "알토",
-  알토: "알토",
-  a1: "알토1",
-  a2: "알토2",
-  alto1: "알토1",
-  alto2: "알토2",
-  // 테너
-  t: "테너",
-  ten: "테너",
-  tenor: "테너",
-  테너: "테너",
-  t1: "테너1",
-  t2: "테너2",
-  ten1: "테너1",
-  ten2: "테너2",
-  // 바리톤
-  bari: "바리톤",
-  baritone: "바리톤",
-  br: "바리톤",
-  바리톤: "바리톤",
-  // 베이스
-  b: "베이스",
-  bass: "베이스",
-  베이스: "베이스",
-  b1: "베이스1",
-  b2: "베이스2",
-  bass1: "베이스1",
-  bass2: "베이스2",
-  // 솔로
-  solo: "솔로",
-  솔로: "솔로",
-  // 전체/기타
-  all: "전체",
-  전체: "전체",
-  mix: "전체",
-  full: "전체",
-  piano: "반주",
-  반주: "반주",
-  mr: "MR",
-  inst: "반주",
-  instrumental: "반주",
-};
+const EXT_RE = /\.(mp3|mp4|m4a|wav|mid|midi|mov)$/i;
 
 export interface ParsedFile {
   title: string;
   part: string;
 }
 
-export function normalizePart(raw: string): string {
-  const key = raw.trim().toLowerCase();
-  return PART_ALIAS[key] ?? raw.trim();
-}
-
-function isPartToken(token: string): boolean {
-  return !!PART_ALIAS[token.trim().toLowerCase()];
-}
+// normalizePart, isPartToken은 @/lib/normalize-part에서 import (위 참조).
+export { normalizePart };
 
 /**
  * 파일명 파싱. 지원하는 패턴:
