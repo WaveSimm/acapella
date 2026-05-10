@@ -10,6 +10,10 @@ const DEFAULT_SOUND_FONT =
 const SPEEDS = [0.5, 0.75, 1.0, 1.25, 1.5];
 type ABMode = "off" | "setA" | "setB" | "active";
 
+// MIDI는 SoundFont 기반이라 MP3·YouTube 대비 음량이 작음.
+// Magenta BasePlayer.output (Tone.Gain) gain을 직접 올려 +12dB 부스트 (10^(12/20) ≈ 3.98).
+const MASTER_GAIN = 4;
+
 interface Props {
   src: string;
   onTimeUpdate?: (time: number, duration: number, playing: boolean) => void;
@@ -242,6 +246,41 @@ export function MidiPlayer({ src, onTimeUpdate, disabled, mixPart, partNames }: 
     };
     tryPreload();
     return () => { cancelled = true; };
+  }, [status, src]);
+
+  // 마스터 게인 부스트 — player가 lazy 초기화돼서 폴링으로 적용 시점 잡음.
+  useEffect(() => {
+    if (status !== "ready") return;
+    const el = elRef.current;
+    if (!el) return;
+    let cancelled = false;
+    let interval: ReturnType<typeof setInterval> | null = null;
+    const apply = (): boolean => {
+      try {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const player = (el as any).player;
+        const out = player?.output;
+        if (out?.gain && typeof out.gain.value === "number") {
+          if (out.gain.value !== MASTER_GAIN) {
+            out.gain.value = MASTER_GAIN;
+          }
+          return true;
+        }
+      } catch { /* noop */ }
+      return false;
+    };
+    if (!apply()) {
+      let n = 0;
+      interval = setInterval(() => {
+        if (cancelled || apply() || ++n > 50) {
+          if (interval) clearInterval(interval);
+        }
+      }, 100);
+    }
+    return () => {
+      cancelled = true;
+      if (interval) clearInterval(interval);
+    };
   }, [status, src]);
 
   // 파트 믹서 — 선택 파트는 원래 velocity 유지, 나머지는 작게.
