@@ -18,6 +18,7 @@ async function main() {
 
   for (const song of songs) {
     if (!song.nwcFile) continue;
+    if (!/\.(nwc|nwctxt)$/i.test(song.nwcFile.fileName)) continue; // NWC 원본만 라운드트립 대상
     const label = `${song.titleKo} (${song.nwcFile.fileName})`;
     try {
       const nwcParsed = parseNwc(Buffer.from(song.nwcFile.data));

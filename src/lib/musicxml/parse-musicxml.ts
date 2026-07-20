@@ -197,6 +197,9 @@ const ACCIDENTAL_MAP: Record<string, number> = {
   "flat-flat": -2,
 };
 
+// 연습용 재생 음색 — NWC 곡들과 동일한 Electric Piano 1 로 통일 (GM program 5, 0-based 4)
+const PRACTICE_PATCH = 4;
+
 const ARTICULATION_MAP: Record<string, Articulation> = {
   staccato: "staccato",
   staccatissimo: "staccatissimo",
@@ -276,17 +279,17 @@ export function parseMusicXml(input: Buffer | string): ParsedScore {
     score.composer = textOf(composerNode);
   }
 
-  // part-list: id → 이름 / MIDI 채널·패치
-  const partMeta = new Map<string, { name: string; channel: number; patch: number }>();
+  // part-list: id → 이름.
+  // 원본의 <midi-instrument> (채널/프로그램) 는 의도적으로 무시 — 연습용 재생 음색을
+  // NWC 곡들과 동일한 Electric Piano 로 통일 (Choir Aahs 등 지속음 샘플은
+  // 마스터 게인 부스트와 겹치면 클리핑으로 틱틱거리고, 단음도 화성처럼 들림).
+  // 채널은 파싱 완료 후 staff 순서대로 재배정 (10번 퍼커션 채널 회피).
+  const partMeta = new Map<string, { name: string }>();
   const partList = childOf(rootPartwise, "part-list");
   if (partList) {
     for (const sp of childrenOf(partList, "score-part")) {
       const id = attrOf(sp, "id") ?? "";
-      const name = childText(sp, "part-name");
-      const mi = childOf(sp, "midi-instrument");
-      const channel = parseInt(childText(mi, "midi-channel"), 10) || 1;
-      const program = parseInt(childText(mi, "midi-program"), 10);
-      partMeta.set(id, { name, channel, patch: isNaN(program) ? 0 : Math.max(0, program - 1) });
+      partMeta.set(id, { name: childText(sp, "part-name") });
     }
   }
 
@@ -304,7 +307,7 @@ export function parseMusicXml(input: Buffer | string): ParsedScore {
   for (let pi = 0; pi < partNodes.length; pi++) {
     const partNode = partNodes[pi];
     const partId = attrOf(partNode, "id") ?? `P${pi + 1}`;
-    const meta = partMeta.get(partId) ?? { name: partId, channel: 1, patch: 0 };
+    const meta = partMeta.get(partId) ?? { name: partId };
 
     // part 단위 상태
     let divisions = 1;
@@ -335,8 +338,8 @@ export function parseMusicXml(input: Buffer | string): ParsedScore {
         name: meta.name || partId,
         label: meta.name || partId,
         partId: "P0", // parseNwc 와 동일하게 마지막에 재할당
-        channel: meta.channel,
-        patch: meta.patch,
+        channel: 1,          // 파싱 완료 후 staff 순서대로 재배정
+        patch: PRACTICE_PATCH,
         volume: 127,
         clef: clefInfo.clef,
         keySig: fifthsToKeySigMap(initialFifths),
@@ -708,8 +711,12 @@ export function parseMusicXml(input: Buffer | string): ParsedScore {
     if (isMale) s.octaveShift = -1;
   }
 
-  // partId 재할당
-  score.staves.forEach((s, i) => { s.partId = "P" + (i + 1); });
+  // partId + 채널 재할당 (staff 순서대로 1..16, 10번 퍼커션 채널 건너뜀)
+  score.staves.forEach((s, i) => {
+    s.partId = "P" + (i + 1);
+    const slot = i % 15;
+    s.channel = slot < 9 ? slot + 1 : slot + 2;
+  });
 
   return score;
 }
