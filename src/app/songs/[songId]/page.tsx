@@ -88,7 +88,7 @@ export default async function SongDetailPage({ params }: Props) {
 
       {hasNwc && nwcMidi && nwcScore && (
         <section className="mt-6">
-          <h2 className="mb-3 text-sm font-semibold text-gray-700">악보 연동 연습 (NWC)</h2>
+          <h2 className="mb-3 text-sm font-semibold text-gray-700">악보 연동 연습</h2>
           <NwcScorePlayer midiSrc={nwcMidi.url} musicXmlSrc={nwcScore.url} />
         </section>
       )}

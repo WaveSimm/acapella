@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth-helpers";
-import { parseNwc } from "@/lib/nwc/parser";
 import { buildMidi } from "@/lib/nwc/to-midi";
 import { buildMusicXml } from "@/lib/nwc/to-musicxml";
+import { parseScoreFile, SCORE_FILE_EXT_RE } from "@/lib/parse-score";
 
 export const runtime = "nodejs";
 
@@ -13,7 +13,7 @@ interface NwcBody {
   songId: string;
 }
 
-// Body: multipart with fields `file` (.nwc) + `songId`
+// Body: multipart with fields `file` (.nwc/.nwctxt/.musicxml/.xml/.mxl) + `songId`
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
   if (!user) return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
@@ -23,13 +23,13 @@ export async function POST(request: NextRequest) {
   const file = form.get("file");
   const songId = form.get("songId");
   if (!(file instanceof File)) {
-    return NextResponse.json({ error: "NWC 파일이 없습니다." }, { status: 400 });
+    return NextResponse.json({ error: "악보 파일이 없습니다." }, { status: 400 });
   }
   if (typeof songId !== "string" || !songId) {
     return NextResponse.json({ error: "songId가 필요합니다." }, { status: 400 });
   }
-  if (!/\.(nwc|nwctxt)$/i.test(file.name)) {
-    return NextResponse.json({ error: "NWC 파일(.nwc 또는 .nwctxt)만 업로드 가능합니다." }, { status: 415 });
+  if (!SCORE_FILE_EXT_RE.test(file.name)) {
+    return NextResponse.json({ error: "악보 파일(.nwc, .nwctxt, .musicxml, .xml, .mxl)만 업로드 가능합니다." }, { status: 415 });
   }
   if (file.size > MAX_SIZE) {
     return NextResponse.json({ error: `파일이 너무 큽니다. 최대 ${MAX_SIZE / 1024 / 1024}MB.` }, { status: 413 });
@@ -41,10 +41,11 @@ export async function POST(request: NextRequest) {
   const buf = Buffer.from(await file.arrayBuffer());
 
   let parsed;
+  let format;
   try {
-    parsed = parseNwc(buf);
+    ({ parsed, format } = parseScoreFile(buf, file.name));
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "NWC 파싱 실패";
+    const msg = e instanceof Error ? e.message : "악보 파싱 실패";
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
@@ -55,10 +56,11 @@ export async function POST(request: NextRequest) {
     musicXml = buildMusicXml(parsed);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "변환 실패";
-    return NextResponse.json({ error: "NWC → MIDI/MusicXML 변환 실패: " + msg }, { status: 500 });
+    return NextResponse.json({ error: "악보 → MIDI/MusicXML 변환 실패: " + msg }, { status: 500 });
   }
 
-  const baseName = file.name.replace(/\.(nwc|nwctxt)$/i, "");
+  const srcTag = format === "nwc" ? "NWC" : "XML";
+  const baseName = file.name.replace(SCORE_FILE_EXT_RE, "");
 
   // UploadedFile + PracticeResource를 한 트랜잭션으로. 기존 NWC 변환 리소스는 선삭제.
   const result = await prisma.$transaction(async (tx) => {
@@ -110,7 +112,7 @@ export async function POST(request: NextRequest) {
         url: `/api/files/${midiFile.id}`,
         resourceType: "MIDI",
         sourceSite: "NWC 변환",
-        label: `${song.titleKo} (NWC→MIDI 전체)`,
+        label: `${song.titleKo} (${srcTag}→MIDI 전체)`,
         fileId: midiFile.id,
       },
     });
@@ -133,7 +135,7 @@ export async function POST(request: NextRequest) {
         url: `/api/files/${xmlFile.id}`,
         resourceType: "SCORE_PREVIEW",
         sourceSite: "NWC 변환",
-        label: `${song.titleKo} (NWC→악보)`,
+        label: `${song.titleKo} (${srcTag}→악보)`,
         fileId: xmlFile.id,
       },
     });

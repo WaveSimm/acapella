@@ -1,13 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { getSessionUser } from "@/lib/auth-helpers";
-import { parseNwc } from "@/lib/nwc/parser";
 import { buildMidi } from "@/lib/nwc/to-midi";
 import { buildMusicXml } from "@/lib/nwc/to-musicxml";
+import { parseScoreFile, SCORE_FILE_EXT_RE } from "@/lib/parse-score";
 
 export const runtime = "nodejs";
 
-// 저장된 원본 NWC 로 MIDI/MusicXML 재변환 (변환 코드 업데이트 후 사용).
+// 저장된 원본 악보(NWC/MusicXML)로 MIDI/MusicXML 재변환 (변환 코드 업데이트 후 사용).
 // Body: { songId: string }
 export async function POST(request: NextRequest) {
   const user = await getSessionUser();
@@ -26,16 +26,17 @@ export async function POST(request: NextRequest) {
   });
   if (!song) return NextResponse.json({ error: "곡을 찾을 수 없습니다." }, { status: 404 });
   if (!song.nwcFile) {
-    return NextResponse.json({ error: "원본 NWC 파일이 저장되어 있지 않습니다. 업로드부터 진행해주세요." }, { status: 404 });
+    return NextResponse.json({ error: "원본 악보 파일이 저장되어 있지 않습니다. 업로드부터 진행해주세요." }, { status: 404 });
   }
 
   const buf = Buffer.from(song.nwcFile.data);
 
   let parsed;
+  let format;
   try {
-    parsed = parseNwc(buf);
+    ({ parsed, format } = parseScoreFile(buf, song.nwcFile.fileName));
   } catch (e) {
-    const msg = e instanceof Error ? e.message : "NWC 파싱 실패";
+    const msg = e instanceof Error ? e.message : "악보 파싱 실패";
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
@@ -46,10 +47,11 @@ export async function POST(request: NextRequest) {
     musicXml = buildMusicXml(parsed);
   } catch (e) {
     const msg = e instanceof Error ? e.message : "변환 실패";
-    return NextResponse.json({ error: "NWC → MIDI/MusicXML 변환 실패: " + msg }, { status: 500 });
+    return NextResponse.json({ error: "악보 → MIDI/MusicXML 변환 실패: " + msg }, { status: 500 });
   }
 
-  const baseName = (song.nwcFile.fileName || "score").replace(/\.(nwc|nwctxt)$/i, "");
+  const srcTag = format === "nwc" ? "NWC" : "XML";
+  const baseName = (song.nwcFile.fileName || "score").replace(SCORE_FILE_EXT_RE, "");
 
   const result = await prisma.$transaction(async (tx) => {
     // 기존 "NWC 변환" 리소스 삭제 (NWC 원본은 보존)
@@ -82,7 +84,7 @@ export async function POST(request: NextRequest) {
         url: `/api/files/${midiFile.id}`,
         resourceType: "MIDI",
         sourceSite: "NWC 변환",
-        label: `${song.titleKo} (NWC→MIDI 전체)`,
+        label: `${song.titleKo} (${srcTag}→MIDI 전체)`,
         fileId: midiFile.id,
       },
     });
@@ -105,7 +107,7 @@ export async function POST(request: NextRequest) {
         url: `/api/files/${xmlFile.id}`,
         resourceType: "SCORE_PREVIEW",
         sourceSite: "NWC 변환",
-        label: `${song.titleKo} (NWC→악보)`,
+        label: `${song.titleKo} (${srcTag}→악보)`,
         fileId: xmlFile.id,
       },
     });

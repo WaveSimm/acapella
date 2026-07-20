@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 
 interface Props {
   songId: string;
-  /** 이미 저장된 NWC 원본 파일이 있으면 재변환 모드로 동작 */
+  /** 이미 저장된 악보 원본 파일(NWC/MusicXML)이 있으면 재변환 모드로 동작 */
   hasStoredNwc?: boolean;
   storedNwcName?: string | null;
 }
@@ -78,11 +78,11 @@ export function NwcUploader({ songId, hasStoredNwc = false, storedNwcName }: Pro
 
   return (
     <div className="rounded-lg border border-gray-200 bg-white p-4">
-      <h3 className="mb-2 text-sm font-bold text-gray-900">NWC 악보 {showReconvert ? "재변환" : "업로드"}</h3>
+      <h3 className="mb-2 text-sm font-bold text-gray-900">악보 파일 {showReconvert ? "재변환" : "업로드"}</h3>
       <p className="mb-3 text-xs text-gray-500">
         {showReconvert
-          ? "저장된 NWC 원본을 최신 변환 로직으로 다시 변환합니다 (변환 코드가 업데이트되었을 때 사용)."
-          : "NoteWorthy Composer(.nwc) 파일을 업로드하면 서버에서 자동으로 MIDI + 악보(MusicXML)로 변환되어 이 곡에 등록됩니다."}
+          ? "저장된 악보 원본을 최신 변환 로직으로 다시 변환합니다 (변환 코드가 업데이트되었을 때 사용)."
+          : "NoteWorthy Composer(.nwc/.nwctxt) 또는 MusicXML(.musicxml/.xml/.mxl) 파일을 업로드하면 서버에서 자동으로 MIDI + 악보로 변환되어 이 곡에 등록됩니다."}
       </p>
 
       {showReconvert ? (
@@ -109,7 +109,7 @@ export function NwcUploader({ songId, hasStoredNwc = false, storedNwcName }: Pro
         <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
           <input
             type="file"
-            accept=".nwc,.nwctxt"
+            accept=".nwc,.nwctxt,.xml,.musicxml,.mxl"
             onChange={(e) => { setError(null); setFile(e.target.files?.[0] ?? null); }}
             className="flex-1 text-sm"
           />

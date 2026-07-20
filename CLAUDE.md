@@ -33,11 +33,15 @@ Acapella 코드에서는 사용하지 않지만 삭제하면 안 된다.
 
 ## 주요 기능 모듈
 
-### NWC 변환 파이프라인 (`src/lib/nwc/`)
-NoteWorthy Composer(.nwc) 파일을 업로드하면 파싱 → MusicXML(악보) + MIDI(재생) 생성.
-- `parser.ts` — NWC 텍스트 포맷 파싱 (임시표 전파, 박자 변경, 가사 규칙, 이음줄, 셋잇단음표 등)
-- `to-musicxml.ts` / `to-midi.ts` — 변환기. `XML_DIVISIONS`/`MIDI_PPQ`는 3의 배수 (셋잇단 반올림 방지)
-- API: `/api/nwc-upload`, `/api/nwc-convert` (재변환 버튼 지원, NWC 원본은 `Song.nwcFileId`로 보관)
+### 악보 변환 파이프라인 (`src/lib/nwc/`, `src/lib/musicxml/`)
+NWC(.nwc/.nwctxt) 또는 MusicXML(.musicxml/.xml/.mxl) 업로드 → 내부 모델(`ParsedScore`) → MusicXML(악보) + MIDI(재생) 생성.
+- `nwc/parser.ts` — NWC 파싱 (임시표 전파, 박자 변경, 가사 규칙, 이음줄, 셋잇단음표 등)
+- `musicxml/parse-musicxml.ts` — MusicXML → 내부 모델 (voice/staff 별 레인 분리, 못갖춘마디 앞쪽 패딩, treble-8 sounding↔written 보정, .mxl ZIP 해제)
+- `parse-score.ts` — 파일 내용 기반 형식 자동 판별 디스패처
+- `nwc/to-musicxml.ts` / `nwc/to-midi.ts` — 공용 변환기. `XML_DIVISIONS`/`MIDI_PPQ`는 3의 배수 (셋잇단 반올림 방지)
+- API: `/api/nwc-upload`, `/api/nwc-convert` (재변환 버튼 지원, 원본 파일은 `Song.nwcFileId`로 보관)
+- 변환 산출 리소스의 `sourceSite` 마커는 형식 무관 `"NWC 변환"` 고정 (기존 데이터·필터 호환)
+- 검증: `scripts/verify-musicxml-roundtrip.ts` (DB 실데이터 라운드트립), `scripts/verify-musicxml-features.ts` (합성 케이스)
 - 재생 UI: `nwc-score-player.tsx` (OSMD 악보 + 커서 동기화), `midi-player.tsx` (속도·파트 믹서, 마스터 게인 +12dB)
 - 커서 동기화는 MIDI 유래 마디 타이밍 기반 — 이 부분 수정 시 과거 커밋 이력(드리프트 이슈 다수) 참고
 
